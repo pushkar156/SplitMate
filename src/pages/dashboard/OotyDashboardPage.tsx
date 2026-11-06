@@ -713,27 +713,17 @@ export const OotyDashboardPage: React.FC = () => {
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteClick(e, exp)}
-                                className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
-                                title="Delete split"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                              <div className="flex items-center gap-1">
-                            {(currentUserId === 'pushkar' || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteClick(e, exp)}
-                                className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
-                                title="Delete split"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <ChevronRight className="w-4 h-4 opacity-75" />
-                          </div>
+                              {(currentUserId === 'pushkar' || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteClick(e, exp)}
+                                  className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
+                                  title="Delete split"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <ChevronRight className="w-4 h-4 opacity-75" />
                             </div>
                           </div>
                         </div>
