@@ -573,7 +573,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
                 className="flex items-center gap-3.5 flex-1 min-w-0 cursor-pointer select-none"
                 onClick={() => toggleMember(member.id)}
               >
-                {/* Google Pay Blue Check Circle */}
+                {/* Blue Check Circle */}
                 <div
                   className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
                     isSelected

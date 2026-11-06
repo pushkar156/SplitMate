@@ -27,7 +27,7 @@ interface GPayMemberExpensesViewProps {
   onSelectExpense?: (exp: OotyExpense) => void;
 }
 
-// Helper to format date matching Google Pay (e.g. "2 Nov", "18 Oct")
+// Helper to format date (e.g. "2 Nov", "18 Oct")
 function formatGPayItemDate(isoString?: string): string {
   if (!isoString) return '';
   try {
@@ -226,7 +226,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    {/* Google Pay Blue checkmark split icon */}
+                    {/* Blue checkmark split icon */}
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
                         isDark ? 'bg-[#1b3d68] text-[#8ab4f8]' : 'bg-[#d3e3fd] text-[#0b57d0]'
@@ -401,7 +401,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
         )}
       </div>
 
-      {/* 5. STICKY BOTTOM ACTION BUTTON (Exact Google Pay pill: "Pay ₹47.50") */}
+      {/* 5. STICKY BOTTOM ACTION BUTTON (Pill: "Pay ₹47.50") */}
       <div className="fixed bottom-0 left-0 right-0 p-4 max-w-xl mx-auto z-20 pointer-events-none">
         <div className="pointer-events-auto">
           {youOwe ? (

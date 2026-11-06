@@ -120,7 +120,7 @@ describe('Ooty Trip 13 Members & Engine', () => {
     }
   });
 
-  it('computes exact Google Pay dual balances for the user', () => {
+  it('computes exact dual balances for the user', () => {
     // Pushkar paid 1,300 split among 13 members (100 each)
     const allIds = OOTY_MEMBERS.map((m) => m.id);
     const expenses: OotyExpense[] = [

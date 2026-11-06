@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OotyMember, OOTY_MEMBERS, PairwiseBalanceItem } from '../../types/ooty';
+import { OotyMember, OOTY_MEMBERS, PairwiseBalanceItem, SimplifiedDebt } from '../../types/ooty';
 import { addOotySettlement } from '../../services/ootyDataService';
 import { useTheme } from '../../context/ThemeContext';
 import { ArrowLeft, ArrowRight, MoreVertical, CheckCircle2 } from 'lucide-react';
@@ -9,11 +9,13 @@ interface GPaySettleUpModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUserId?: string;
+  isAdmin?: boolean;
   defaultFromId?: string;
   defaultToId?: string;
   defaultAmount?: number;
   members?: OotyMember[];
   owedByYouList?: PairwiseBalanceItem[];
+  simplifiedDebts?: SimplifiedDebt[];
 }
 
 type SettleStep = 'choose' | 'confirm';
@@ -22,16 +24,19 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
   isOpen,
   onClose,
   currentUserId = 'pushkar',
+  isAdmin = false,
   defaultFromId,
   defaultToId,
   defaultAmount,
   members = OOTY_MEMBERS,
   owedByYouList = [],
+  simplifiedDebts = [],
 }) => {
   const { isDark } = useTheme();
   const activeMembers = members.length > 0 ? members : OOTY_MEMBERS;
 
   const [step, setStep] = useState<SettleStep>('choose');
+  const [fromId, setFromId] = useState<string>(defaultFromId || currentUserId);
   const [toId, setToId] = useState<string>('');
   const [amountStr, setAmountStr] = useState<string>('');
   const [note, setNote] = useState<string>('Settlement');
@@ -40,6 +45,9 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
   // Sync state whenever modal opens or defaults change
   useEffect(() => {
     if (isOpen) {
+      const initialFrom = defaultFromId || currentUserId;
+      setFromId(initialFrom);
+
       if (defaultToId) {
         setToId(defaultToId);
         setAmountStr(defaultAmount ? defaultAmount.toString() : '');
@@ -52,7 +60,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
       setNote('Settlement');
       setIsSubmitting(false);
     }
-  }, [isOpen, defaultToId, defaultAmount]);
+  }, [isOpen, defaultFromId, defaultToId, defaultAmount, currentUserId]);
 
   if (!isOpen) return null;
 
@@ -60,20 +68,38 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
   const settlingList = owedByYouList.filter((item) => item.amount > 0);
 
   const handleSelectMember = (memberId: string, amount: number) => {
+    setFromId(currentUserId);
     setToId(memberId);
     setAmountStr(amount.toFixed(2));
     setStep('confirm');
   };
 
+  const handleSelectDebt = (debt: SimplifiedDebt) => {
+    setFromId(debt.from);
+    setToId(debt.to);
+    setAmountStr(debt.amount.toFixed(2));
+    setStep('confirm');
+  };
+
   const numAmount = parseFloat(amountStr) || 0;
+  const fromMember = activeMembers.find((m) => m.id === fromId);
   const toMember = activeMembers.find((m) => m.id === toId);
-  const fromMember = activeMembers.find((m) => m.id === (defaultFromId || currentUserId));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!fromId) {
+      toast.error('Please select who is paying');
+      return;
+    }
+
     if (!toId) {
-      toast.error('Please select who you are paying');
+      toast.error('Please select who is receiving the payment');
+      return;
+    }
+
+    if (fromId === toId) {
+      toast.error('Payer and receiver cannot be the same member');
       return;
     }
 
@@ -85,15 +111,16 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
     setIsSubmitting(true);
     try {
       await addOotySettlement({
-        fromMemberId: defaultFromId || currentUserId,
+        fromMemberId: fromId,
         toMemberId: toId,
         amount: numAmount,
         date: new Date().toISOString().split('T')[0],
         note: note.trim() || 'Settlement',
       });
 
-      const toName = toMember?.name || toId;
-      toast.success(`Settled: You paid ₹${numAmount.toLocaleString('en-IN')} to ${toName}! 🤝`);
+      const fromName = fromMember?.id === currentUserId ? 'You' : (fromMember?.name || fromId);
+      const toName = toMember?.id === currentUserId ? 'You' : (toMember?.name || toId);
+      toast.success(`Settled: ${fromName} paid ₹${numAmount.toLocaleString('en-IN')} to ${toName}! 🤝`);
       onClose();
     } catch (err: any) {
       toast.error('Failed to record settlement: ' + (err?.message || 'Error'));
@@ -109,7 +136,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
       }`}
     >
       {/* ========================================================================= */}
-      {/* STEP 1: CHOOSE WHO YOU'RE SETTLING WITH (Exact Match to Image 2)          */}
+      {/* STEP 1: CHOOSE WHO YOU'RE SETTLING WITH                                   */}
       {/* ========================================================================= */}
       {step === 'choose' && (
         <div className="flex-1 flex flex-col justify-between overflow-hidden">
@@ -138,7 +165,103 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
 
           {/* List or Empty State */}
           <div className="flex-1 overflow-y-auto divide-y divide-current/5">
-            {settlingList.length === 0 ? (
+            {isAdmin && simplifiedDebts && simplifiedDebts.length > 0 ? (
+              <div className="pb-6">
+                {/* Admin Quick Action: Custom settlement */}
+                <div className="px-6 py-3 border-b border-current/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFromId(activeMembers[0]?.id || currentUserId);
+                      setToId(activeMembers[1]?.id || '');
+                      setAmountStr('');
+                      setStep('confirm');
+                    }}
+                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-medium border flex items-center justify-center gap-2 transition-colors ${
+                      isDark
+                        ? 'border-[#333538] hover:bg-[#1e1f20] text-[#a8c7fa]'
+                        : 'border-[#dadce0] hover:bg-[#f1f3f4] text-[#1a73e8]'
+                    }`}
+                  >
+                    <span>+ Custom settlement between any members</span>
+                  </button>
+                </div>
+
+                {/* Show current user's direct debts if any */}
+                {settlingList.length > 0 && (
+                  <div>
+                    <div className={`px-6 py-2.5 text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                      Your Debts
+                    </div>
+                    {settlingList.map((item) => (
+                      <div
+                        key={item.member.id}
+                        onClick={() => handleSelectMember(item.member.id, item.amount)}
+                        className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors active:scale-[0.99] ${
+                          isDark ? 'hover:bg-[#1f1f1f] active:bg-[#282a2d]' : 'hover:bg-[#f1f3f4] active:bg-[#e8eaed]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
+                            style={{ backgroundColor: item.member.avatarColor || '#802C62' }}
+                          >
+                            {item.member.name.charAt(0)}
+                          </div>
+                          <span className="text-base font-normal text-current truncate">
+                            {item.member.name}
+                          </span>
+                        </div>
+
+                        <span className="font-mono text-base font-medium text-current shrink-0">
+                          ₹{item.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* All Group Debts (Admin View) */}
+                <div>
+                  <div className={`px-6 py-2.5 text-[11px] font-semibold uppercase tracking-wider ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                    All Group Debts ({simplifiedDebts.length})
+                  </div>
+                  {simplifiedDebts.map((debt, dIdx) => {
+                    const debtor = activeMembers.find((m) => m.id === debt.from);
+                    return (
+                      <div
+                        key={dIdx}
+                        onClick={() => handleSelectDebt(debt)}
+                        className={`px-6 py-4 flex items-center justify-between cursor-pointer transition-colors active:scale-[0.99] ${
+                          isDark ? 'hover:bg-[#1f1f1f] active:bg-[#282a2d]' : 'hover:bg-[#f1f3f4] active:bg-[#e8eaed]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
+                            style={{ backgroundColor: debtor?.avatarColor || '#FF5B42' }}
+                          >
+                            {debt.fromName.charAt(0)}
+                          </div>
+                          <div className="min-w-0 truncate">
+                            <span className="text-base font-medium text-current">
+                              {debt.fromName}
+                            </span>
+                            <span className={`text-xs ml-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                              owes <span className={`font-medium ${isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'}`}>{debt.toName}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className="font-mono text-base font-medium text-current shrink-0">
+                          ₹{debt.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : settlingList.length === 0 ? (
               // Empty Celebration State: "you are settled"
               <div className="h-full flex flex-col items-center justify-center text-center px-6 py-16 my-auto">
                 <div className="w-20 h-20 rounded-full bg-[#34a853]/15 text-[#34a853] flex items-center justify-center mb-5 shadow-sm">
@@ -163,7 +286,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
                 </button>
               </div>
             ) : (
-              // List of Members you owe money to (Matches Image 2 exactly)
+              // Regular User: List of Members you owe money to
               settlingList.map((item) => (
                 <div
                   key={item.member.id}
@@ -232,15 +355,31 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
                   className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md mb-2"
                   style={{ backgroundColor: fromMember?.avatarColor || '#FF5B42' }}
                 >
-                  {fromMember?.name.charAt(0)}
+                  {fromMember?.name ? fromMember.name.charAt(0) : 'P'}
                 </div>
-                <span className="text-sm font-medium text-current">{fromMember?.name}</span>
-                <span className={`text-[11px] ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>Paying</span>
+                {isAdmin ? (
+                  <select
+                    value={fromId}
+                    onChange={(e) => setFromId(e.target.value)}
+                    className={`text-xs font-medium rounded-lg px-2 py-1 border cursor-pointer focus:outline-none max-w-[120px] truncate ${
+                      isDark ? 'bg-[#1e1f20] border-[#333538] text-white' : 'bg-[#f1f3f4] border-[#dadce0] text-[#202124]'
+                    }`}
+                  >
+                    {activeMembers.map((m) => (
+                      <option key={m.id} value={m.id} className={isDark ? 'bg-[#1e1f20] text-white' : 'bg-white text-black'}>
+                        {m.name} {m.id === currentUserId ? '(You)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-sm font-medium text-current">{fromMember?.name}</span>
+                )}
+                <span className={`text-[11px] mt-0.5 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>Paying</span>
               </div>
 
               {/* Arrow */}
               <div
-                className={`w-10 h-10 rounded-full border flex items-center justify-center shadow-sm ${
+                className={`w-10 h-10 rounded-full border flex items-center justify-center shadow-sm shrink-0 ${
                   isDark ? 'bg-[#1e1f20] border-[#333538] text-[#a8c7fa]' : 'bg-[#f1f3f4] border-[#dadce0] text-[#1a73e8]'
                 }`}
               >
@@ -253,10 +392,29 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
                   className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md mb-2"
                   style={{ backgroundColor: toMember?.avatarColor || '#802C62' }}
                 >
-                  {toMember?.name.charAt(0)}
+                  {toMember?.name ? toMember.name.charAt(0) : 'R'}
                 </div>
-                <span className="text-sm font-medium text-current">{toMember?.name}</span>
-                <span className={`text-[11px] font-medium ${isDark ? 'text-[#34a853]' : 'text-[#137333]'}`}>
+                {isAdmin ? (
+                  <select
+                    value={toId}
+                    onChange={(e) => setToId(e.target.value)}
+                    className={`text-xs font-medium rounded-lg px-2 py-1 border cursor-pointer focus:outline-none max-w-[120px] truncate ${
+                      isDark ? 'bg-[#1e1f20] border-[#333538] text-white' : 'bg-[#f1f3f4] border-[#dadce0] text-[#202124]'
+                    }`}
+                  >
+                    <option value="" disabled>Select receiver</option>
+                    {activeMembers
+                      .filter((m) => m.id !== fromId)
+                      .map((m) => (
+                        <option key={m.id} value={m.id} className={isDark ? 'bg-[#1e1f20] text-white' : 'bg-white text-black'}>
+                          {m.name} {m.id === currentUserId ? '(You)' : ''}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <span className="text-sm font-medium text-current">{toMember?.name}</span>
+                )}
+                <span className={`text-[11px] font-medium mt-0.5 ${isDark ? 'text-[#34a853]' : 'text-[#137333]'}`}>
                   Receiving
                 </span>
               </div>

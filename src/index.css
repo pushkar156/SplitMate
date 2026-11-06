@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* Google Pay Light Theme */
+    /* SplitMate Light Theme */
     --bg-main: #F8F9FA;
     --bg-secondary: #FFFFFF;
     --bg-card: #FFFFFF;
@@ -22,7 +22,7 @@
   }
 
   .dark {
-    /* Google Pay Dark Theme */
+    /* SplitMate Dark Theme */
     --bg-main: #000000;
     --bg-secondary: #1E1F20;
     --bg-card: #1E1F20;

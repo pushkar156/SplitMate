@@ -143,7 +143,7 @@ export interface GPayPairwiseDetails {
 
 /**
  * Calculates complete pairwise breakdown between the current user and another member:
- * returns exact unpaid expenses, paid expenses, and settlements matching Google Pay.
+ * returns exact unpaid expenses, paid expenses, and settlements.
  */
 export function getGPayPairwiseDetails(
   currentUserId: string,
@@ -306,8 +306,8 @@ export function getGPayPairwiseDetails(
 }
 
 /**
- * Calculates exact Google Pay pairwise balances for the current user
- * (Matches Google Pay's "Owed by you", "X people owe you", and "Settled" view)
+ * Calculates exact pairwise balances for the current user
+ * ("Owed by you", "X people owe you", and "Settled" view)
  */
 export function calculateGPayBalancesForUser(
   currentUserId: string,

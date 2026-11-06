@@ -262,7 +262,7 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Submit Pill Button (Google Pay Blue) */}
+            {/* Submit Pill Button (Primary Blue) */}
             <button
               type="submit"
               disabled={isLoading}

@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Helper to format dates like Google Pay (e.g. "28 Oct")
+// Helper to format dates (e.g. "28 Oct")
 function formatGPayDate(isoString?: string): string {
   if (!isoString) return '';
   try {
@@ -75,7 +75,7 @@ export const OotyDashboardPage: React.FC = () => {
   const [chatInput, setChatInput] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ isConnected: true, isSyncing: false });
 
-  // Top Tabs: 'chat' (Google Pay Conversation Stream) | 'expenses' (Balances overview) | 'all_members'
+  // Top Tabs: 'chat' (Conversation Stream) | 'expenses' (Balances overview) | 'all_members'
   const [topTab, setTopTab] = useState<'chat' | 'expenses' | 'all_members'>('chat');
   const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<OotyMember | null>(null);
 
@@ -149,7 +149,7 @@ export const OotyDashboardPage: React.FC = () => {
 
   const currentUserId = user?.id || 'pushkar';
 
-  // Calculate Exact Google Pay Balances for the logged-in user
+  // Calculate Exact Balances for the logged-in user
   const gpayBalances = useMemo(() => {
     return calculateGPayBalancesForUser(currentUserId, expenses, settlements, members);
   }, [currentUserId, expenses, settlements, members]);
@@ -168,7 +168,7 @@ export const OotyDashboardPage: React.FC = () => {
     return expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
   }, [expenses]);
 
-  // Unified Google Pay Chat Stream Timeline (Expenses, Settlements, and Messages)
+  // Unified Chat Stream Timeline (Expenses, Settlements, and Messages)
   const timelineItems = useMemo(() => {
     const items: Array<{
       id: string;
@@ -358,7 +358,7 @@ export const OotyDashboardPage: React.FC = () => {
         isDark ? 'bg-[#000000] text-[#e3e3e3]' : 'bg-[#f8f9fa] text-[#202124]'
       }`}
     >
-      {/* 1. TOP APP BAR (Exact Google Pay Group Header) */}
+      {/* 1. TOP APP BAR (Group Header) */}
       {!selectedMemberForDetail && (
         <header
           className={`sticky top-0 z-40 backdrop-blur-md px-4 pt-3 pb-0 border-b transition-colors ${
@@ -368,7 +368,7 @@ export const OotyDashboardPage: React.FC = () => {
         <div className="flex items-center justify-between pb-2">
           {/* Left: Group Title with Avatar cluster */}
           <div className="flex items-center gap-3">
-            {/* Google Pay Style 4-avatar cluster with SplitMate Logo badge */}
+            {/* 4-avatar cluster with SplitMate Logo badge */}
             <div className="relative shrink-0">
               <div
                 className={`w-10 h-10 rounded-full border grid grid-cols-2 gap-0.5 p-0.5 overflow-hidden shadow-sm ${
@@ -556,7 +556,7 @@ export const OotyDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* TOP TABS: "Chat" (Default like Google Pay) | "Expenses" | "All 13" */}
+        {/* TOP TABS: "Chat" | "Expenses" | "All 13" */}
         <div className={`flex items-center justify-around border-t ${isDark ? 'border-[#1e1f20]' : 'border-[#e8eaed]'}`}>
           <button
             onClick={() => {
@@ -639,7 +639,7 @@ export const OotyDashboardPage: React.FC = () => {
       {/* 2. MAIN CONTENT AREA */}
       <main className={`flex-1 max-w-xl mx-auto w-full px-4 ${selectedMemberForDetail ? 'pt-1 pb-24' : topTab === 'chat' ? 'pt-3 pb-24' : 'pt-3 pb-28'}`}>
         {/* ========================================================================= */}
-        {/* TAB 1: GOOGLE PAY GROUP CHAT STREAM (Exact Screenshot: Requested for...) */}
+        {/* TAB 1: GROUP CHAT STREAM                                                  */}
         {/* ========================================================================= */}
         {topTab === 'chat' && (
           <div className="space-y-3.5 animate-in fade-in duration-150">
@@ -969,7 +969,7 @@ export const OotyDashboardPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: GOOGLE PAY EXPENSES BALANCES OVERVIEW (Matches First Screenshot)   */}
+        {/* TAB 2: EXPENSES BALANCES OVERVIEW                                         */}
         {/* ========================================================================= */}
         {topTab === 'expenses' && (
           selectedMemberForDetail ? (
@@ -1220,7 +1220,7 @@ export const OotyDashboardPage: React.FC = () => {
                         <span className="font-mono font-medium">
                           ₹{debt.amount.toLocaleString('en-IN')}
                         </span>
-                        {(debt.from === currentUserId || debt.to === currentUserId) && (
+                        {(debt.from === currentUserId || debt.to === currentUserId || (currentUserId === 'pushkar' && isAdminMode)) && (
                           <button
                             onClick={() => {
                               setSettlePrefill({
@@ -1230,10 +1230,10 @@ export const OotyDashboardPage: React.FC = () => {
                               });
                               setIsSettleUpOpen(true);
                             }}
-                            className={`px-3 py-1 rounded-full font-medium text-[11px] ${
+                            className={`px-3 py-1 rounded-full font-medium text-[11px] transition-transform active:scale-95 ${
                               isDark
-                                ? 'bg-[#a8c7fa] text-[#041e49]'
-                                : 'bg-[#0b57d0] text-white'
+                                ? 'bg-[#a8c7fa] hover:bg-[#8ab4f8] text-[#041e49]'
+                                : 'bg-[#0b57d0] hover:bg-[#1a73e8] text-white'
                             }`}
                           >
                             Settle
@@ -1296,7 +1296,7 @@ export const OotyDashboardPage: React.FC = () => {
       </main>
 
       {/* ========================================================================= */}
-      {/* 3. BOTTOM BAR (Exact Google Pay UI for Chat vs Expenses)                  */}
+      {/* 3. BOTTOM BAR                                                             */}
       {/* ========================================================================= */}
       {!selectedMemberForDetail && (
         topTab === 'chat' ? (
@@ -1390,7 +1390,7 @@ export const OotyDashboardPage: React.FC = () => {
       )
       )}
 
-      {/* 4. GOOGLE PAY SPLIT EXPENSE SCREEN MODAL (Exact Images 2, 3, 4) */}
+      {/* 4. SPLIT EXPENSE SCREEN MODAL */}
       <GPaySplitExpenseModal
         isOpen={isSplitExpenseOpen}
         onClose={() => setIsSplitExpenseOpen(false)}
@@ -1399,16 +1399,21 @@ export const OotyDashboardPage: React.FC = () => {
         members={members}
       />
 
-      {/* 5. GOOGLE PAY SETTLE UP MODAL */}
+      {/* 5. SETTLE UP MODAL */}
       <GPaySettleUpModal
         isOpen={isSettleUpOpen}
-        onClose={() => setIsSettleUpOpen(false)}
+        onClose={() => {
+          setIsSettleUpOpen(false);
+          setSettlePrefill({ fromId: undefined, toId: undefined, amount: undefined });
+        }}
         currentUserId={currentUserId}
+        isAdmin={currentUserId === 'pushkar' && isAdminMode}
         defaultFromId={settlePrefill.fromId}
         defaultToId={settlePrefill.toId}
         defaultAmount={settlePrefill.amount}
         members={members}
         owedByYouList={gpayBalances.owedByYouList}
+        simplifiedDebts={simplifiedDebts}
       />
 
       {/* 5B. EXPENSE SPLIT DETAILS VIEW (Exact Image 2) */}
