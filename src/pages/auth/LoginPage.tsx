@@ -1,169 +1,234 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../components/ui/Card';
-import { Receipt, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { OOTY_MEMBERS } from '../../types/ooty';
+import { Compass, Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signInWithEmail, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState('aarav@splitmate.app');
-  const [password, setPassword] = useState('password123');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const { login, user } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('pushkar');
+  const [password, setPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // If already logged in, redirect immediately
+  React.useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('Please enter email and password');
+    setErrorMsg(null);
+
+    if (!selectedMemberId) {
+      setErrorMsg('Please select your name from the dropdown.');
+      return;
+    }
+
+    if (!password) {
+      setErrorMsg('Please enter the trip password.');
       return;
     }
 
     setIsLoading(true);
-    const { error } = await signInWithEmail(email, password);
+    const result = await login(selectedMemberId, password);
     setIsLoading(false);
 
-    if (error) {
-      toast.error(error.message);
+    if (result.success) {
+      const member = OOTY_MEMBERS.find((m) => m.id === selectedMemberId);
+      toast.success(`Welcome to Ooty Trip, ${member?.name}! 🌲⛰️`);
+      navigate('/', { replace: true });
     } else {
-      toast.success('Welcome back to SplitMate!');
-      navigate('/dashboard');
+      setErrorMsg(result.error || 'Login failed.');
+      toast.error(result.error || 'Login failed');
     }
   };
 
-  const handleOAuthLogin = async () => {
-    setIsGoogleLoading(true);
-    const { error } = await signInWithGoogle();
-    setIsGoogleLoading(false);
-    if (error) {
-      toast.error(error.message, { duration: 6000 });
-      return;
-    }
-    toast.success('Signed in with Google!');
-    navigate('/dashboard');
-  };
+  const selectedMember = OOTY_MEMBERS.find((m) => m.id === selectedMemberId);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 rounded-2xl bg-gradient-to-tr from-primary to-secondary items-center justify-center shadow-elevated mb-2">
-            <Receipt className="h-6 w-6 text-white" />
+    <div className="min-h-screen bg-retro-bg flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative background ambient glows */}
+      <div className="absolute -top-32 -left-32 w-96 h-96 bg-retro-berry/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-retro-coral/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-retro-plum/30 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Retro Header Card */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-retro-plum border-2 border-retro-coral shadow-retro-lg mb-3">
+            <Compass className="w-8 h-8 text-retro-gold animate-pulse" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Welcome back</h1>
-          <p className="text-xs text-foreground-muted">
-            Sign in to track group expenses and settle debts seamlessly
+          <h1 className="text-3xl font-extrabold font-display tracking-tight text-retro-text-primary">
+            SplitMate
+          </h1>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-retro-plum/60 border border-retro-gold/40 text-retro-gold text-xs font-semibold mt-2 shadow-sm">
+            <span>🌲 Ooty Trip 2024</span>
+            <span>•</span>
+            <span>13 Travelers</span>
+          </div>
+          <p className="text-retro-text-muted text-sm mt-2">
+            Shared expense splitting & settlement dashboard
           </p>
         </div>
 
-        <Card className="border-border/80 shadow-elevated">
-          <form onSubmit={handleSubmit}>
-            <CardHeader>
-              <CardTitle>Sign in to SplitMate</CardTitle>
-              <CardDescription>
-                Enter your credentials or use the demo credentials below
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                label="Email address"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+        {/* Login Box */}
+        <div className="bg-retro-card border-2 border-retro-border rounded-2xl p-6 sm:p-8 shadow-retro-xl backdrop-blur-md">
+          <div className="mb-6 border-b border-retro-border pb-4">
+            <h2 className="text-lg font-bold text-retro-text-primary flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-retro-coral inline-block" />
+              Member Login
+            </h2>
+            <p className="text-xs text-retro-text-muted mt-0.5">
+              Select your name and enter the trip password to enter your dashboard.
+            </p>
+          </div>
 
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-medium text-foreground-muted">Password</label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
+          {errorMsg && (
+            <div className="mb-4 p-3 rounded-xl bg-retro-coral/15 border border-retro-coral/40 text-retro-coral text-sm flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="flex-1 text-xs leading-relaxed font-medium">{errorMsg}</div>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            {/* 1. Name Dropdown */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-retro-text-muted mb-1.5">
+                Select Your Name
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedMemberId}
+                  onChange={(e) => {
+                    setSelectedMemberId(e.target.value);
+                    setErrorMsg(null);
+                  }}
+                  className="w-full bg-retro-surface border-2 border-retro-border rounded-xl px-4 py-3 text-retro-text-primary font-medium focus:outline-none focus:border-retro-coral transition-colors appearance-none cursor-pointer"
+                >
+                  {OOTY_MEMBERS.map((m) => (
+                    <option key={m.id} value={m.id} className="bg-retro-surface text-retro-text-primary">
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-retro-gold font-bold">
+                  ▼
                 </div>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
+              </div>
+            </div>
+
+            {/* Selected User Badge */}
+            {selectedMember && (
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-retro-surface/80 border border-retro-border">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                  style={{ backgroundColor: selectedMember.avatarColor }}
+                >
+                  {selectedMember.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-retro-text-muted font-medium">Signing in as</div>
+                  <div className="text-sm font-bold text-retro-text-primary truncate">
+                    {selectedMember.name}
+                  </div>
+                </div>
+                <CheckCircle2 className="w-5 h-5 text-retro-teal" />
+              </div>
+            )}
+
+            {/* 2. Password */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-retro-text-muted">
+                  Trip Password
+                </label>
+                <span className="text-[11px] text-retro-gold font-mono font-medium">
+                  Hint: 1234567890
+                </span>
+              </div>
+              <div className="relative">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-retro-text-muted pointer-events-none">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrorMsg(null);
+                  }}
+                  placeholder="Enter 1234567890"
+                  className="w-full bg-retro-surface border-2 border-retro-border rounded-xl pl-10 pr-11 py-3 text-retro-text-primary font-mono text-sm focus:outline-none focus:border-retro-coral transition-colors"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-retro-text-muted hover:text-retro-text-primary p-1 rounded-lg"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+            </div>
 
-              <Button type="submit" className="w-full" isLoading={isLoading}>
-                <span>Sign in</span>
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-foreground-muted">Or continue with</span>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                isLoading={isGoogleLoading}
-                onClick={handleOAuthLogin}
-              >
-                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                Google Account
-              </Button>
-            </CardContent>
-
-            <CardFooter className="flex flex-col space-y-3 pt-2">
-              <div className="flex items-center space-x-2 text-xs text-foreground-muted justify-center">
-                <ShieldCheck className="h-4 w-4 text-secondary" />
-                <span>End-to-end mathematical settlement reconciliation</span>
-              </div>
-
-              <div className="text-center text-xs text-foreground-muted">
-                Don't have an account?{' '}
-                <Link to="/signup" className="text-primary font-medium hover:underline">
-                  Create account
-                </Link>
-              </div>
-            </CardFooter>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full mt-2 py-3.5 px-4 rounded-xl bg-retro-coral hover:bg-retro-coral/90 text-white font-bold text-sm tracking-wide shadow-retro-md hover:shadow-retro-lg transition-all transform active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>Open Ooty Dashboard</span>
+                  <span>→</span>
+                </>
+              )}
+            </button>
           </form>
-        </Card>
 
-        {/* Quick Demo Credentials pill */}
-        <div className="p-3 bg-card-elevated/60 border border-border rounded-xl text-center">
-          <p className="text-xs text-foreground-muted flex items-center justify-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span>Pre-filled with <strong>Aarav Sharma</strong> (Goa trip group admin).</span>
-          </p>
+          {/* Device Persistence Note */}
+          <div className="mt-5 pt-4 border-t border-retro-border text-center">
+            <p className="text-[11px] text-retro-text-muted leading-relaxed">
+              🔒 Your device will remain logged in automatically until you click{' '}
+              <strong className="text-retro-text-primary">Logout</strong> in the dashboard.
+            </p>
+          </div>
+        </div>
+
+        {/* 13 Members Quick Pills */}
+        <div className="mt-5 p-3 rounded-xl bg-retro-card/40 border border-retro-border/60 backdrop-blur-sm text-center">
+          <div className="text-[11px] font-semibold text-retro-text-muted uppercase tracking-wider mb-2">
+            The 13 Ooty Travelers
+          </div>
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {OOTY_MEMBERS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  setSelectedMemberId(m.id);
+                  setErrorMsg(null);
+                }}
+                className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                  selectedMemberId === m.id
+                    ? 'bg-retro-coral text-white border-retro-coral font-bold'
+                    : 'bg-retro-surface/60 text-retro-text-muted border-retro-border hover:border-retro-gold/50'
+                }`}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 };
-

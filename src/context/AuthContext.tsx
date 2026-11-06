@@ -1,181 +1,71 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { UserProfile } from '../types';
-import { isFirebaseConfigured, auth, db, googleProvider } from '../lib/firebase';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  updateProfile,
-  User as FirebaseUser,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { dataService } from '../services/dataService';
-import { DEMO_USERS } from '../services/mockData';
+import { OotyMember, OOTY_MEMBERS, OOTY_PASSWORD } from '../types/ooty';
+import { isFirebaseConfigured } from '../lib/firebase';
+import { ensureFirebaseAuth } from '../services/ootyDataService';
 
 interface AuthContextType {
-  user: UserProfile | null;
+  user: OotyMember | null;
   loading: boolean;
+  login: (memberId: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => void;
   isLiveFirebase: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
-  signOut: () => Promise<void>;
-  switchDemoUser: (userId: string) => void;
-  availableDemoUsers: UserProfile[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const LOCAL_USER_STORAGE_KEY = 'splitmate_ooty_logged_in_member_v1';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const isLiveFirebase = isFirebaseConfigured();
+  const [user, setUser] = useState<OotyMember | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const isLive = isFirebaseConfigured();
 
-  const syncFirestoreUserProfile = async (fbUser: FirebaseUser) => {
-    const profile: UserProfile = {
-      id: fbUser.uid,
-      fullName: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
-      email: fbUser.email || undefined,
-      avatarUrl: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.displayName || 'User')}`,
-    };
-
-    if (db) {
-      try {
-        const userRef = doc(db, 'users', fbUser.uid);
-        const userDoc = await getDoc(userRef);
-
-        if (!userDoc.exists()) {
-          await setDoc(userRef, {
-            fullName: profile.fullName,
-            email: profile.email || '',
-            avatarUrl: profile.avatarUrl || null,
-            createdAt: new Date().toISOString(),
-          });
-        } else {
-          const data = userDoc.data();
-          profile.fullName = data.fullName || profile.fullName;
-          profile.avatarUrl = data.avatarUrl || profile.avatarUrl;
-        }
-      } catch (err) {
-        console.warn('Firestore profile sync error (using local profile):', err);
-      }
-    }
-
-    dataService.setCurrentUser(profile);
-    setUser(profile);
-    setLoading(false);
-  };
-
+  // Restore session on mount (persists across refreshes and restarts until Logout is clicked)
   useEffect(() => {
-    if (isLiveFirebase && auth) {
-      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-        if (fbUser) {
-          await syncFirestoreUserProfile(fbUser);
-        } else {
-          setUser(null);
-          setLoading(false);
+    try {
+      const storedMemberId = localStorage.getItem(LOCAL_USER_STORAGE_KEY);
+      if (storedMemberId) {
+        const found = OOTY_MEMBERS.find((m) => m.id === storedMemberId.toLowerCase());
+        if (found) {
+          setUser(found);
+          ensureFirebaseAuth();
         }
-      });
-
-      return () => unsubscribe();
-    } else {
-      // If Firebase keys are not loaded yet, allow manual demo switching
-      setUser(dataService.getCurrentUser());
+      }
+    } catch (err) {
+      console.error('Failed to load user from localStorage:', err);
+    } finally {
       setLoading(false);
     }
-  }, [isLiveFirebase]);
+  }, []);
 
-  const signInWithEmail = async (email: string, password: string): Promise<{ error: Error | null }> => {
-    if (isLiveFirebase && auth) {
-      try {
-        const res = await signInWithEmailAndPassword(auth, email, password);
-        await syncFirestoreUserProfile(res.user);
-        return { error: null };
-      } catch (err: unknown) {
-        return { error: err instanceof Error ? err : new Error(String(err)) };
-      }
+  const login = async (
+    memberId: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const trimmedId = memberId.trim().toLowerCase();
+    const found = OOTY_MEMBERS.find((m) => m.id === trimmedId);
+
+    if (!found) {
+      return { success: false, error: 'Please select a valid member from the dropdown.' };
     }
 
-    // Demo mode fallback
-    const found = DEMO_USERS.find((u) => u.email?.toLowerCase() === email.toLowerCase()) || DEMO_USERS[0];
-    dataService.setCurrentUser(found);
+    if (password !== OOTY_PASSWORD) {
+      return { success: false, error: 'Incorrect password! The trip password is 1234567890.' };
+    }
+
+    // Persist login to device
+    localStorage.setItem(LOCAL_USER_STORAGE_KEY, found.id);
     setUser(found);
-    return { error: null };
+
+    // Background Firebase auth
+    ensureFirebaseAuth();
+
+    return { success: true };
   };
 
-  const signUpWithEmail = async (
-    email: string,
-    password: string,
-    fullName: string
-  ): Promise<{ error: Error | null }> => {
-    if (isLiveFirebase && auth) {
-      try {
-        const res = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(res.user, { displayName: fullName });
-        await syncFirestoreUserProfile(res.user);
-        return { error: null };
-      } catch (err: unknown) {
-        return { error: err instanceof Error ? err : new Error(String(err)) };
-      }
-    }
-
-    const newUser: UserProfile = {
-      id: `u-${Date.now()}`,
-      fullName,
-      email,
-      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fullName)}`,
-    };
-    dataService.setCurrentUser(newUser);
-    setUser(newUser);
-    return { error: null };
-  };
-
-  const signInWithGoogle = async (): Promise<{ error: Error | null }> => {
-    if (!isLiveFirebase || !auth) {
-      return {
-        error: new Error(
-          'Firebase is not active. If you just added keys to .env, please restart your Vite dev server (press Ctrl+C in terminal and run npm run dev).'
-        ),
-      };
-    }
-
-    try {
-      const res = await signInWithPopup(auth, googleProvider);
-      await syncFirestoreUserProfile(res.user);
-      return { error: null };
-    } catch (err: any) {
-      console.error('Firebase Google popup error:', err);
-      let userFriendlyMsg = err.message || 'Google authentication failed';
-
-      if (err.code === 'auth/popup-closed-by-user') {
-        userFriendlyMsg = 'Google Sign-In popup was closed before completion.';
-      } else if (err.code === 'auth/popup-blocked') {
-        userFriendlyMsg = 'Sign-in popup was blocked by your browser. Please allow popups for localhost.';
-      } else if (err.code === 'auth/operation-not-allowed') {
-        userFriendlyMsg = 'Google Sign-In is not enabled yet in your Firebase Console. Go to Authentication -> Sign-in method -> Google and toggle Enable.';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        userFriendlyMsg = 'This domain is not authorized in Firebase Console -> Authentication -> Settings -> Authorized domains.';
-      }
-
-      return { error: new Error(userFriendlyMsg) };
-    }
-  };
-
-  const signOut = async () => {
-    if (isLiveFirebase && auth) {
-      await firebaseSignOut(auth);
-    }
+  const logout = () => {
+    localStorage.removeItem(LOCAL_USER_STORAGE_KEY);
     setUser(null);
-  };
-
-  const switchDemoUser = (userId: string) => {
-    const found = DEMO_USERS.find((u) => u.id === userId);
-    if (found) {
-      dataService.setCurrentUser(found);
-      setUser(found);
-    }
   };
 
   return (
@@ -183,13 +73,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
-        isLiveFirebase,
-        signInWithEmail,
-        signUpWithEmail,
-        signInWithGoogle,
-        signOut,
-        switchDemoUser,
-        availableDemoUsers: DEMO_USERS,
+        login,
+        logout,
+        isLiveFirebase: isLive,
       }}
     >
       {children}
@@ -197,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');

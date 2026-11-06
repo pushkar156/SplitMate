@@ -2,35 +2,17 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-
-import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/auth/LoginPage';
-import { SignupPage } from './pages/auth/SignupPage';
-import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
-import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { GroupsListPage } from './pages/groups/GroupsListPage';
-import { CreateGroupPage } from './pages/groups/CreateGroupPage';
-import { GroupWorkspacePage } from './pages/groups/GroupWorkspacePage';
-import { JoinGroupPage } from './pages/groups/JoinGroupPage';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import { OotyDashboardPage } from './pages/dashboard/OotyDashboardPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="min-h-screen bg-retro-bg flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-retro-coral border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -44,54 +26,46 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 export const App: React.FC = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Toaster
-              position="top-right"
-              theme="system"
-              richColors
-              closeButton
-              toastOptions={{
-                style: {
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  borderColor: 'var(--border-color)',
-                },
-              }}
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Toaster
+            position="top-right"
+            theme="system"
+            richColors
+            closeButton
+            toastOptions={{
+              style: {
+                background: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-color)',
+              },
+            }}
+          />
+          <Routes>
+            {/* 13-member Ooty Login Page */}
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* Dedicated Ooty Trip Dashboard (device stays logged in until logout) */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <OotyDashboardPage />
+                </ProtectedRoute>
+              }
             />
-            <Routes>
-              {/* Public Auth Routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-              {/* Protected App Routes */}
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/groups" element={<GroupsListPage />} />
-                <Route path="/groups/create" element={<CreateGroupPage />} />
-                <Route path="/groups/:groupId" element={<GroupWorkspacePage />} />
-                <Route path="/join/:token" element={<JoinGroupPage />} />
-              </Route>
-
-              {/* Catch-all */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+            {/* Redirect any old routes straight to the Ooty Dashboard */}
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/groups/*" element={<Navigate to="/" replace />} />
+            <Route path="/join/*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 
 export default App;
-
