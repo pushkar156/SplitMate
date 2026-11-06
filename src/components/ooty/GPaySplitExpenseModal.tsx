@@ -39,7 +39,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
   const activeMembers = members.length > 0 ? members : OOTY_MEMBERS;
 
   // Amount & Description
-  const [amountStr, setAmountStr] = useState<string>('500');
+  const [amountStr, setAmountStr] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [isEditingDescription, setIsEditingDescription] = useState<boolean>(false);
   const [paidById, setPaidById] = useState<string>(currentUserId);
@@ -66,6 +66,8 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
   // Sync state when opened
   useEffect(() => {
     if (isOpen) {
+      setAmountStr('');
+      setDescription('');
       setPaidById(currentUserId);
       const allIds = activeMembers.map((m) => m.id);
       setSelectedIds(allIds);
@@ -725,7 +727,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
                 : 'Complete details to send'}
             </span>
           ) : (
-            <span>Send request (₹{totalAmount.toLocaleString('en-IN')})</span>
+            <span>Send request (₹{formatCurrency(totalAmount)})</span>
           )}
         </button>
       </div>
