@@ -11,8 +11,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-retro-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-retro-coral border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#000000] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#a8c7fa] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }

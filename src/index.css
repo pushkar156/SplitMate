@@ -4,45 +4,39 @@
 
 @layer base {
   :root {
-    /* Retro Light Theme: Warm newsprint paper with Deep Plum, Coral, Berry and Mustard */
-    --bg-main: #FDF9F0;
+    /* Google Pay Light Theme */
+    --bg-main: #F8F9FA;
     --bg-secondary: #FFFFFF;
     --bg-card: #FFFFFF;
-    --bg-elevated: #F6EDDC;
-    --accent-primary: #FF5B42;
-    --accent-primary-hover: #E8452D;
-    --accent-primary-muted: rgba(255, 91, 66, 0.12);
-    --accent-secondary: #802C62;
-    --accent-secondary-hover: #67214E;
-    --accent-secondary-muted: rgba(128, 44, 98, 0.12);
-    --positive-balance: #0F8C64;
-    --positive-bg: rgba(255, 215, 73, 0.35);
-    --negative-balance: #FF5B42;
-    --negative-bg: rgba(255, 91, 66, 0.12);
-    --text-primary: #421454;
-    --text-secondary: #785382;
-    --border-color: #EBDDC4;
+    --bg-elevated: #F1F3F4;
+    --accent-primary: #0B57D0;
+    --accent-primary-hover: #1A73E8;
+    --accent-primary-muted: rgba(11, 87, 208, 0.12);
+    --positive-balance: #137333;
+    --positive-bg: rgba(19, 115, 51, 0.12);
+    --negative-balance: #D93025;
+    --negative-bg: rgba(217, 48, 37, 0.12);
+    --text-primary: #202124;
+    --text-secondary: #5F6368;
+    --border-color: #DADCE0;
   }
 
   .dark {
-    /* Retro Dark Theme: Deep Plum Velvet with Golden Mustard, Sunset Coral and Berry Wine */
-    --bg-main: #1C0726;
-    --bg-secondary: #260A33;
-    --bg-card: #2F0D3F;
-    --bg-elevated: #421454;
-    --accent-primary: #FF5B42;
-    --accent-primary-hover: #FF7560;
-    --accent-primary-muted: rgba(255, 91, 66, 0.22);
-    --accent-secondary: #802C62;
-    --accent-secondary-hover: #9E377A;
-    --accent-secondary-muted: rgba(128, 44, 98, 0.32);
-    --positive-balance: #FFD749;
-    --positive-bg: rgba(255, 215, 73, 0.18);
-    --negative-balance: #FF5B42;
-    --negative-bg: rgba(255, 91, 66, 0.2);
-    --text-primary: #FFF9EE;
-    --text-secondary: #D4B6DC;
-    --border-color: #5A1E6E;
+    /* Google Pay Dark Theme */
+    --bg-main: #000000;
+    --bg-secondary: #1E1F20;
+    --bg-card: #1E1F20;
+    --bg-elevated: #282A2D;
+    --accent-primary: #A8C7FA;
+    --accent-primary-hover: #B8D4FF;
+    --accent-primary-muted: rgba(168, 199, 250, 0.22);
+    --positive-balance: #34A853;
+    --positive-bg: rgba(52, 168, 83, 0.18);
+    --negative-balance: #EA4335;
+    --negative-bg: rgba(234, 67, 53, 0.2);
+    --text-primary: #E3E3E3;
+    --text-secondary: #8E918F;
+    --border-color: #2E3033;
   }
 }
 

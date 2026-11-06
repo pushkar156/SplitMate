@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import {
   OotyExpense,
   OotySettlement,
@@ -31,6 +32,8 @@ import {
   ChevronRight,
   Send,
   CheckCircle2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -61,6 +64,7 @@ function formatGPayTime(isoString?: string): string {
 export const OotyDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
 
   const [expenses, setExpenses] = useState<OotyExpense[]>([]);
   const [settlements, setSettlements] = useState<OotySettlement[]>([]);
@@ -274,7 +278,6 @@ export const OotyDashboardPage: React.FC = () => {
     const userInvolved = exp.splitWith.includes(currentUserId);
     const userShare = userInvolved ? sharePerPerson : 0;
 
-    // Count paid participants: payer is always 1
     let paidCount = 1;
     exp.splitWith.forEach((mId) => {
       if (mId === exp.paidBy) return;
@@ -305,18 +308,30 @@ export const OotyDashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#e3e3e3] flex flex-col font-sans select-none">
+    <div
+      className={`min-h-screen flex flex-col font-sans select-none transition-colors duration-150 ${
+        isDark ? 'bg-[#000000] text-[#e3e3e3]' : 'bg-[#f8f9fa] text-[#202124]'
+      }`}
+    >
       {/* 1. TOP APP BAR (Exact Google Pay Group Header) */}
-      <header className="sticky top-0 z-40 bg-[#000000]/95 backdrop-blur-md px-4 pt-3 pb-0 border-b border-[#1e1f20]">
+      <header
+        className={`sticky top-0 z-40 backdrop-blur-md px-4 pt-3 pb-0 border-b transition-colors ${
+          isDark ? 'bg-[#000000]/95 border-[#1e1f20]' : 'bg-[#ffffff]/95 border-[#dadce0]'
+        }`}
+      >
         <div className="flex items-center justify-between pb-2">
           {/* Left: Group Title with Avatar cluster */}
           <div className="flex items-center gap-3">
             {/* Google Pay Style 4-avatar cluster */}
-            <div className="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333538] grid grid-cols-2 gap-0.5 p-0.5 overflow-hidden shrink-0">
+            <div
+              className={`w-10 h-10 rounded-full border grid grid-cols-2 gap-0.5 p-0.5 overflow-hidden shrink-0 shadow-sm ${
+                isDark ? 'bg-[#1e1f20] border-[#333538]' : 'bg-[#ffffff] border-[#dadce0]'
+              }`}
+            >
               {members.slice(0, 4).map((m) => (
                 <div
                   key={m.id}
-                  className="rounded-full flex items-center justify-center text-[9px] font-bold text-white leading-none"
+                  className="rounded-full flex items-center justify-center text-[9px] font-bold text-white leading-none shadow-sm"
                   style={{ backgroundColor: m.avatarColor }}
                 >
                   {m.name.charAt(0)}
@@ -326,7 +341,7 @@ export const OotyDashboardPage: React.FC = () => {
 
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-medium text-base text-white tracking-tight leading-tight">
+                <h1 className="font-medium text-base tracking-tight leading-tight">
                   Ooty Trip
                 </h1>
                 <button
@@ -344,97 +359,169 @@ export const OotyDashboardPage: React.FC = () => {
                   title={syncStatus.isConnected ? 'Live Database Sync Active (Tap for status)' : (syncStatus.error || 'Connecting to database...')}
                 />
               </div>
-              <div className="text-xs text-[#8e918f] leading-none mt-0.5">
-                {members.length} members • <span className="text-[#a8c7fa] font-medium">{user?.name} (You)</span>
+              <div className={`text-xs leading-none mt-0.5 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                {members.length} members •{' '}
+                <span className={`font-medium ${isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'}`}>
+                  {user?.name} (You)
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Right: Three Dots Menu */}
-          <div className="relative">
+          {/* Right: Theme Toggle & Three Dots Menu */}
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 rounded-full hover:bg-[#1e1f20] text-[#c4c7c5] transition-colors"
+              onClick={toggleTheme}
+              className={`p-2 rounded-full transition-colors ${
+                isDark ? 'hover:bg-[#1e1f20] text-[#c4c7c5]' : 'hover:bg-[#f1f3f4] text-[#5f6368]'
+              }`}
+              title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             >
-              <MoreVertical className="w-5 h-5" />
+              {isDark ? <Sun className="w-5 h-5 text-[#fbbc04]" /> : <Moon className="w-5 h-5 text-[#1a73e8]" />}
             </button>
 
-            {/* Menu Popover */}
-            {isMenuOpen && (
-              <div className="absolute right-0 top-10 w-48 bg-[#1e1f20] border border-[#333538] rounded-2xl shadow-2xl py-2 z-50 text-xs text-[#e3e3e3] animate-in fade-in-50">
-                <button
-                  onClick={handleInstallApp}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#282a2d] flex items-center gap-2.5 text-[#34a853]"
-                >
-                  <Smartphone className="w-4 h-4" />
-                  <span>Install App to Phone</span>
-                </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className={`p-2 rounded-full transition-colors ${
+                  isDark ? 'hover:bg-[#1e1f20] text-[#c4c7c5]' : 'hover:bg-[#f1f3f4] text-[#5f6368]'
+                }`}
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
 
-                <button
-                  onClick={copyWhatsAppSummary}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#282a2d] flex items-center gap-2.5"
+              {/* Menu Popover */}
+              {isMenuOpen && (
+                <div
+                  className={`absolute right-0 top-10 w-52 border rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in-50 ${
+                    isDark ? 'bg-[#1e1f20] border-[#333538] text-[#e3e3e3]' : 'bg-[#ffffff] border-[#dadce0] text-[#202124]'
+                  }`}
                 >
-                  <Share2 className="w-4 h-4 text-[#a8c7fa]" />
-                  <span>WhatsApp Summary</span>
-                </button>
+                  <button
+                    onClick={() => {
+                      toggleTheme();
+                      setIsMenuOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
+                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
+                    }`}
+                  >
+                    {isDark ? <Sun className="w-4 h-4 text-[#fbbc04]" /> : <Moon className="w-4 h-4 text-[#1a73e8]" />}
+                    <span>{isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}</span>
+                  </button>
 
-                <button
-                  onClick={downloadCSV}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#282a2d] flex items-center gap-2.5"
-                >
-                  <Download className="w-4 h-4 text-[#8e918f]" />
-                  <span>Export to CSV</span>
-                </button>
+                  <button
+                    onClick={handleInstallApp}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 text-[#34a853] ${
+                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
+                    }`}
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>Install App to Phone</span>
+                  </button>
 
-                <div className="border-t border-[#282a2d] my-1" />
+                  <button
+                    onClick={copyWhatsAppSummary}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
+                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
+                    }`}
+                  >
+                    <Share2 className={`w-4 h-4 ${isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'}`} />
+                    <span>WhatsApp Summary</span>
+                  </button>
 
-                <button
-                  onClick={handleLogout}
-                  className="w-full px-4 py-2.5 text-left hover:bg-[#282a2d] text-[#ff727a] flex items-center gap-2.5"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Logout Device</span>
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={downloadCSV}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
+                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
+                    }`}
+                  >
+                    <Download className="w-4 h-4 text-[#8e918f]" />
+                    <span>Export to CSV</span>
+                  </button>
+
+                  <div className={`border-t my-1 ${isDark ? 'border-[#282a2d]' : 'border-[#e8eaed]'}`} />
+
+                  <button
+                    onClick={handleLogout}
+                    className={`w-full px-4 py-2.5 text-left text-[#ea4335] flex items-center gap-2.5 ${
+                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
+                    }`}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout Device</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* TOP TABS: "Chat" (Default like Google Pay) | "Expenses" | "All 13" */}
-        <div className="flex items-center justify-around border-t border-[#1e1f20]">
+        <div className={`flex items-center justify-around border-t ${isDark ? 'border-[#1e1f20]' : 'border-[#e8eaed]'}`}>
           <button
             onClick={() => setTopTab('chat')}
             className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
-              topTab === 'chat' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
+              topTab === 'chat'
+                ? isDark
+                  ? 'text-white'
+                  : 'text-[#202124] font-semibold'
+                : isDark
+                ? 'text-[#8e918f] hover:text-[#c4c7c5]'
+                : 'text-[#5f6368] hover:text-[#202124]'
             }`}
           >
             Chat
             {topTab === 'chat' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#a8c7fa] rounded-full" />
+              <div
+                className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full ${
+                  isDark ? 'bg-[#a8c7fa]' : 'bg-[#1a73e8]'
+                }`}
+              />
             )}
           </button>
 
           <button
             onClick={() => setTopTab('expenses')}
             className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
-              topTab === 'expenses' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
+              topTab === 'expenses'
+                ? isDark
+                  ? 'text-white'
+                  : 'text-[#202124] font-semibold'
+                : isDark
+                ? 'text-[#8e918f] hover:text-[#c4c7c5]'
+                : 'text-[#5f6368] hover:text-[#202124]'
             }`}
           >
             Expenses
             {topTab === 'expenses' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#a8c7fa] rounded-full" />
+              <div
+                className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full ${
+                  isDark ? 'bg-[#a8c7fa]' : 'bg-[#1a73e8]'
+                }`}
+              />
             )}
           </button>
 
           <button
             onClick={() => setTopTab('all_members')}
             className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
-              topTab === 'all_members' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
+              topTab === 'all_members'
+                ? isDark
+                  ? 'text-white'
+                  : 'text-[#202124] font-semibold'
+                : isDark
+                ? 'text-[#8e918f] hover:text-[#c4c7c5]'
+                : 'text-[#5f6368] hover:text-[#202124]'
             }`}
           >
             All 13 ({simplifiedDebts.length})
             {topTab === 'all_members' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#a8c7fa] rounded-full" />
+              <div
+                className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full ${
+                  isDark ? 'bg-[#a8c7fa]' : 'bg-[#1a73e8]'
+                }`}
+              />
             )}
           </button>
         </div>
@@ -448,10 +535,10 @@ export const OotyDashboardPage: React.FC = () => {
         {topTab === 'chat' && (
           <div className="space-y-3.5 animate-in fade-in duration-150">
             {timelineItems.length === 0 ? (
-              <div className="p-12 text-center text-[#8e918f]">
-                <Receipt className="w-12 h-12 mx-auto text-[#333538] mb-3" />
+              <div className={`p-12 text-center ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                <Receipt className="w-12 h-12 mx-auto mb-3 opacity-40" />
                 <p className="text-sm">No expenses or chat messages yet.</p>
-                <p className="text-xs text-[#5e6368] mt-1">Tap "Split expense" below to start the Ooty group trip!</p>
+                <p className="text-xs opacity-75 mt-1">Tap "Split expense" below to start the Ooty group trip!</p>
               </div>
             ) : (
               timelineItems.map((item) => {
@@ -462,15 +549,21 @@ export const OotyDashboardPage: React.FC = () => {
                   const isSentByYou = exp.paidBy === currentUserId;
                   const payerMember = members.find((m) => m.id === exp.paidBy);
 
-                  // CASE 1: Sent by You (Pushkar) -> Right aligned dark card
+                  // CASE 1: Sent by You (Pushkar) -> Right aligned card
                   if (isSentByYou) {
                     return (
                       <div key={item.id} className="flex flex-col items-end my-2.5">
-                        <div className="bg-[#282a2d] text-[#e3e3e3] rounded-2xl p-4 w-72 sm:w-80 shadow-md border border-[#333538]/40">
-                          <div className="text-xs text-[#c4c7c5] font-normal">
+                        <div
+                          className={`rounded-2xl p-4 w-72 sm:w-80 shadow-md border ${
+                            isDark
+                              ? 'bg-[#282a2d] text-[#e3e3e3] border-[#333538]/40'
+                              : 'bg-[#e8f0fe] text-[#202124] border-[#d2e3fc]'
+                          }`}
+                        >
+                          <div className={`text-xs font-normal ${isDark ? 'text-[#c4c7c5]' : 'text-[#3c4043]'}`}>
                             Requested for '{exp.title}'
                           </div>
-                          <div className="text-3xl font-medium tracking-tight text-white my-1 font-sans">
+                          <div className="text-3xl font-medium tracking-tight my-1 font-sans">
                             ₹{Math.round(exp.amount).toLocaleString('en-IN')}
                           </div>
 
@@ -481,7 +574,9 @@ export const OotyDashboardPage: React.FC = () => {
                               return (
                                 <div
                                   key={mId}
-                                  className="w-5 h-5 rounded-full border border-[#282a2d] flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
+                                  className={`w-5 h-5 rounded-full border flex items-center justify-center text-[9px] font-bold text-white shadow-sm ${
+                                    isDark ? 'border-[#282a2d]' : 'border-[#e8f0fe]'
+                                  }`}
                                   style={{ backgroundColor: m?.avatarColor || '#FF5B42' }}
                                   title={m?.name || mId}
                                 >
@@ -490,7 +585,7 @@ export const OotyDashboardPage: React.FC = () => {
                               );
                             })}
                             {exp.splitWith.length > 5 && (
-                              <span className="text-[10px] text-[#8e918f] pl-2 font-mono">
+                              <span className={`text-[10px] pl-2 font-mono ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                                 +{exp.splitWith.length - 5}
                               </span>
                             )}
@@ -498,13 +593,13 @@ export const OotyDashboardPage: React.FC = () => {
 
                           {/* Blue Progress Bar */}
                           <div className="flex items-center gap-2 my-1.5">
-                            <div className="h-1 rounded-full bg-[#1e1f20] flex-1 overflow-hidden">
+                            <div className={`h-1 rounded-full flex-1 overflow-hidden ${isDark ? 'bg-[#1e1f20]' : 'bg-[#d2e3fc]'}`}>
                               <div
                                 className="h-full bg-[#1a73e8] rounded-full transition-all"
                                 style={{ width: `${Math.max(8, prog.progressPercent)}%` }}
                               />
                             </div>
-                            <span className="text-xs text-[#c4c7c5] shrink-0 font-medium">
+                            <span className={`text-xs shrink-0 font-medium ${isDark ? 'text-[#c4c7c5]' : 'text-[#1a73e8]'}`}>
                               {prog.remainingAmount > 0
                                 ? `₹${Math.round(prog.remainingAmount).toLocaleString('en-IN')} left`
                                 : 'All paid'}
@@ -512,9 +607,13 @@ export const OotyDashboardPage: React.FC = () => {
                           </div>
 
                           {/* Bottom Row: Clock + Status + Chevron + Delete */}
-                          <div className="flex items-center justify-between text-xs text-[#8e918f] pt-1.5 border-t border-[#383a3d]/60 mt-2">
+                          <div
+                            className={`flex items-center justify-between text-xs pt-1.5 border-t mt-2 ${
+                              isDark ? 'border-[#383a3d]/60 text-[#8e918f]' : 'border-[#d2e3fc] text-[#5f6368]'
+                            }`}
+                          >
                             <div className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-[#8e918f]" />
+                              <Clock className="w-3.5 h-3.5" />
                               <span>
                                 {prog.paidCount} of {prog.totalInvolved} paid • {formatGPayDate(exp.createdAt || exp.date)}
                               </span>
@@ -522,12 +621,12 @@ export const OotyDashboardPage: React.FC = () => {
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => handleDeleteExpense(exp.id, exp.title)}
-                                className="p-1 hover:text-[#ff727a] text-[#8e918f] transition-colors"
+                                className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
                                 title="Delete split"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                              <ChevronRight className="w-4 h-4 text-[#8e918f]" />
+                              <ChevronRight className="w-4 h-4 opacity-75" />
                             </div>
                           </div>
                         </div>
@@ -546,15 +645,23 @@ export const OotyDashboardPage: React.FC = () => {
                         >
                           {payerMember?.name.charAt(0)}
                         </div>
-                        <span className="text-xs text-[#c4c7c5] font-medium">{payerMember?.name}</span>
+                        <span className={`text-xs font-medium ${isDark ? 'text-[#c4c7c5]' : 'text-[#3c4043]'}`}>
+                          {payerMember?.name}
+                        </span>
                       </div>
 
                       {/* Card */}
-                      <div className="bg-[#282a2d] text-[#e3e3e3] rounded-2xl p-4 w-72 sm:w-80 shadow-md border border-[#333538]/40">
-                        <div className="text-xs text-[#c4c7c5] font-normal">
+                      <div
+                        className={`rounded-2xl p-4 w-72 sm:w-80 shadow-md border ${
+                          isDark
+                            ? 'bg-[#282a2d] text-[#e3e3e3] border-[#333538]/40'
+                            : 'bg-[#ffffff] text-[#202124] border-[#dadce0]'
+                        }`}
+                      >
+                        <div className={`text-xs font-normal ${isDark ? 'text-[#c4c7c5]' : 'text-[#5f6368]'}`}>
                           Split request • {exp.title}
                         </div>
-                        <div className="text-3xl font-medium tracking-tight text-white my-1 font-sans">
+                        <div className="text-3xl font-medium tracking-tight my-1 font-sans">
                           ₹{Math.round(prog.userShare > 0 ? prog.userShare : exp.amount).toLocaleString('en-IN')}
                         </div>
 
@@ -565,7 +672,9 @@ export const OotyDashboardPage: React.FC = () => {
                             return (
                               <div
                                 key={mId}
-                                className="w-5 h-5 rounded-full border border-[#282a2d] flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
+                                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[9px] font-bold text-white shadow-sm ${
+                                  isDark ? 'border-[#282a2d]' : 'border-[#ffffff]'
+                                }`}
                                 style={{ backgroundColor: m?.avatarColor || '#FF5B42' }}
                                 title={m?.name || mId}
                               >
@@ -577,26 +686,30 @@ export const OotyDashboardPage: React.FC = () => {
 
                         {/* Blue Progress Bar */}
                         <div className="flex items-center gap-2 my-1.5">
-                          <div className="h-1 rounded-full bg-[#1e1f20] flex-1 overflow-hidden">
+                          <div className={`h-1 rounded-full flex-1 overflow-hidden ${isDark ? 'bg-[#1e1f20]' : 'bg-[#e8eaed]'}`}>
                             <div
                               className="h-full bg-[#1a73e8] rounded-full transition-all"
                               style={{ width: `${Math.max(8, prog.progressPercent)}%` }}
                             />
                           </div>
-                          <span className="text-xs text-[#8e918f] shrink-0 font-medium">
+                          <span className={`text-xs shrink-0 font-medium ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                             {prog.paidCount}/{prog.totalInvolved} paid
                           </span>
                         </div>
 
                         {/* Bottom Row */}
-                        <div className="flex items-center justify-between text-xs text-[#8e918f] pt-1.5 border-t border-[#383a3d]/60 mt-2">
+                        <div
+                          className={`flex items-center justify-between text-xs pt-1.5 border-t mt-2 ${
+                            isDark ? 'border-[#383a3d]/60 text-[#8e918f]' : 'border-[#e8eaed] text-[#5f6368]'
+                          }`}
+                        >
                           <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-[#8e918f]" />
+                            <Clock className="w-3.5 h-3.5" />
                             <span>
                               {prog.isUserPaid ? 'Paid' : 'Unpaid'} • {formatGPayDate(exp.createdAt || exp.date)}
                             </span>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-[#8e918f]" />
+                          <ChevronRight className="w-4 h-4 opacity-75" />
                         </div>
 
                         {/* BIG GOOGLE PAY BLUE PAY BUTTON */}
@@ -628,12 +741,21 @@ export const OotyDashboardPage: React.FC = () => {
 
                   return (
                     <div key={item.id} className="flex justify-center my-3">
-                      <div className="px-4 py-2 bg-[#1e1f20] border border-[#282a2d] rounded-full flex items-center gap-2 text-xs text-[#c4c7c5] shadow-sm">
+                      <div
+                        className={`px-4 py-2 border rounded-full flex items-center gap-2 text-xs shadow-sm ${
+                          isDark
+                            ? 'bg-[#1e1f20] border-[#282a2d] text-[#c4c7c5]'
+                            : 'bg-[#ffffff] border-[#dadce0] text-[#3c4043]'
+                        }`}
+                      >
                         <CheckCircle2 className="w-4 h-4 text-[#34a853] shrink-0" />
                         <span>
-                          <strong className="text-white font-medium">{fromName}</strong> paid ₹{Math.round(set.amount).toLocaleString('en-IN')} to <strong className="text-white font-medium">{toName}</strong>
+                          <strong className="font-semibold text-current">{fromName}</strong> paid ₹{Math.round(set.amount).toLocaleString('en-IN')} to{' '}
+                          <strong className="font-semibold text-current">{toName}</strong>
                         </span>
-                        <span className="text-[#8e918f] text-[11px]">• {formatGPayDate(set.createdAt || set.date)}</span>
+                        <span className={`text-[11px] ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                          • {formatGPayDate(set.createdAt || set.date)}
+                        </span>
                       </div>
                     </div>
                   );
@@ -648,10 +770,14 @@ export const OotyDashboardPage: React.FC = () => {
                   if (isYou) {
                     return (
                       <div key={item.id} className="flex flex-col items-end my-1.5">
-                        <div className="bg-[#004a77] text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[80%] text-sm shadow-sm break-words">
+                        <div
+                          className={`text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[80%] text-sm shadow-sm break-words ${
+                            isDark ? 'bg-[#004a77]' : 'bg-[#0b57d0]'
+                          }`}
+                        >
                           {msg.text}
                         </div>
-                        <span className="text-[10px] text-[#8e918f] mt-0.5 pr-1">
+                        <span className={`text-[10px] mt-0.5 pr-1 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                           {formatGPayTime(msg.createdAt)}
                         </span>
                       </div>
@@ -667,11 +793,19 @@ export const OotyDashboardPage: React.FC = () => {
                         {sender?.name.charAt(0)}
                       </div>
                       <div className="flex flex-col items-start max-w-[80%]">
-                        <span className="text-[11px] text-[#8e918f] ml-1 mb-0.5">{sender?.name}</span>
-                        <div className="bg-[#282a2d] text-[#e3e3e3] rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm shadow-sm break-words">
+                        <span className={`text-[11px] ml-1 mb-0.5 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                          {sender?.name}
+                        </span>
+                        <div
+                          className={`rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm shadow-sm break-words border ${
+                            isDark
+                              ? 'bg-[#282a2d] text-[#e3e3e3] border-[#333538]/40'
+                              : 'bg-[#ffffff] text-[#202124] border-[#dadce0]'
+                          }`}
+                        >
                           {msg.text}
                         </div>
-                        <span className="text-[10px] text-[#8e918f] mt-0.5 pl-1">
+                        <span className={`text-[10px] mt-0.5 pl-1 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                           {formatGPayTime(msg.createdAt)}
                         </span>
                       </div>
@@ -692,37 +826,45 @@ export const OotyDashboardPage: React.FC = () => {
         {topTab === 'expenses' && (
           <div className="space-y-6 animate-in fade-in duration-150">
             {/* DUAL BALANCE CARD (Exact Image 1) */}
-            <div className="bg-[#1e1f20] border border-[#2a2b2e] rounded-3xl p-5 shadow-sm">
-              <div className="grid grid-cols-2 divide-x divide-[#2e3033]">
+            <div
+              className={`rounded-3xl p-5 border shadow-sm ${
+                isDark ? 'bg-[#1e1f20] border-[#2a2b2e]' : 'bg-[#ffffff] border-[#dadce0]'
+              }`}
+            >
+              <div className={`grid grid-cols-2 divide-x ${isDark ? 'divide-[#2e3033]' : 'divide-[#e8eaed]'}`}>
                 {/* Left: Owed by you */}
                 <div className="pr-4">
-                  <div className="text-2xl sm:text-3xl font-medium tracking-tight text-white font-sans">
+                  <div className="text-2xl sm:text-3xl font-medium tracking-tight font-sans">
                     ₹{gpayBalances.owedByYouTotal.toFixed(2)}
                   </div>
-                  <div className="text-xs text-[#8e918f] mt-1 font-normal">
+                  <div className={`text-xs mt-1 font-normal ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                     Owed by you
                   </div>
                 </div>
 
-                {/* Right: Owed to you (Green text #34a853) */}
+                {/* Right: Owed to you (Green text) */}
                 <div className="pl-5">
-                  <div className="text-2xl sm:text-3xl font-medium tracking-tight text-[#34a853] font-sans">
+                  <div
+                    className={`text-2xl sm:text-3xl font-medium tracking-tight font-sans ${
+                      isDark ? 'text-[#34a853]' : 'text-[#137333]'
+                    }`}
+                  >
                     ₹{gpayBalances.owedToYouTotal.toFixed(2)}
                   </div>
-                  <div className="text-xs text-[#8e918f] mt-1 font-normal">
+                  <div className={`text-xs mt-1 font-normal ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                     Owed to you
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* SECTION 1: "Owed by you" (Image 1) */}
+            {/* SECTION 1: "Owed by you" */}
             {gpayBalances.owedByYouList.length > 0 && (
               <div>
-                <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+                <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                   Owed by you
                 </h2>
-                <div className="divide-y divide-[#1e1f20]">
+                <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
                   {gpayBalances.owedByYouList.map((item) => (
                     <div
                       key={item.member.id}
@@ -734,7 +876,9 @@ export const OotyDashboardPage: React.FC = () => {
                         });
                         setIsSettleUpOpen(true);
                       }}
-                      className="py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#1e1f20]/50 rounded-xl transition-colors"
+                      className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
+                        isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
+                      }`}
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div
@@ -744,16 +888,16 @@ export const OotyDashboardPage: React.FC = () => {
                           {item.member.name.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-white truncate">
+                          <div className="text-sm font-medium truncate">
                             {item.member.name}
                           </div>
-                          <div className="text-xs text-[#8e918f]">
+                          <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                             {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-right font-medium text-sm text-white shrink-0 font-sans">
+                      <div className="text-right font-medium text-sm shrink-0 font-sans">
                         ₹{item.amount.toFixed(2)}
                       </div>
                     </div>
@@ -762,13 +906,13 @@ export const OotyDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {/* SECTION 2: "1 person owes you" (Image 1) */}
+            {/* SECTION 2: "1 person owes you" */}
             {gpayBalances.owedToYouList.length > 0 && (
               <div>
-                <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+                <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                   {gpayBalances.owedToYouList.length} {gpayBalances.owedToYouList.length === 1 ? 'person owes' : 'people owe'} you
                 </h2>
-                <div className="divide-y divide-[#1e1f20]">
+                <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
                   {gpayBalances.owedToYouList.map((item) => (
                     <div
                       key={item.member.id}
@@ -780,7 +924,9 @@ export const OotyDashboardPage: React.FC = () => {
                         });
                         setIsSettleUpOpen(true);
                       }}
-                      className="py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#1e1f20]/50 rounded-xl transition-colors"
+                      className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
+                        isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
+                      }`}
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div
@@ -790,16 +936,20 @@ export const OotyDashboardPage: React.FC = () => {
                           {item.member.name.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-white truncate">
+                          <div className="text-sm font-medium truncate">
                             {item.member.name}
                           </div>
-                          <div className="text-xs text-[#8e918f]">
+                          <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                             {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-right font-medium text-sm text-[#34a853] shrink-0 font-sans">
+                      <div
+                        className={`text-right font-medium text-sm shrink-0 font-sans ${
+                          isDark ? 'text-[#34a853]' : 'text-[#137333]'
+                        }`}
+                      >
                         ₹{item.amount.toFixed(2)}
                       </div>
                     </div>
@@ -808,12 +958,12 @@ export const OotyDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {/* SECTION 3: "Settled" (Image 1) */}
+            {/* SECTION 3: "Settled" */}
             <div>
-              <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+              <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                 Settled
               </h2>
-              <div className="divide-y divide-[#1e1f20]">
+              <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
                 {gpayBalances.settledList.map((item) => (
                   <div
                     key={item.member.id}
@@ -827,16 +977,16 @@ export const OotyDashboardPage: React.FC = () => {
                         {item.member.name.charAt(0)}
                       </div>
                       <div className="min-w-0">
-                        <div className="text-sm font-medium text-white truncate">
+                        <div className="text-sm font-medium truncate">
                           {item.member.name}
                         </div>
-                        <div className="text-xs text-[#8e918f]">
+                        <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                           {item.totalExpenseCount > 0 ? `${item.totalExpenseCount} expenses` : 'All settled'}
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-right font-medium text-sm text-[#8e918f] shrink-0 font-sans">
+                    <div className={`text-right font-medium text-sm shrink-0 font-sans ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                       ₹0.00
                     </div>
                   </div>
@@ -852,17 +1002,25 @@ export const OotyDashboardPage: React.FC = () => {
         {topTab === 'all_members' && (
           <div className="space-y-6 animate-in fade-in duration-150">
             {/* Trip Spend Summary Card */}
-            <div className="p-5 rounded-3xl bg-[#1e1f20] border border-[#282a2d] shadow-sm">
+            <div
+              className={`p-5 rounded-3xl border shadow-sm ${
+                isDark ? 'bg-[#1e1f20] border-[#282a2d]' : 'bg-[#ffffff] border-[#dadce0]'
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs text-[#8e918f]">Total Ooty Trip Cost</div>
-                  <div className="text-3xl font-medium tracking-tight text-white mt-1 font-sans">
+                  <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>Total Ooty Trip Cost</div>
+                  <div className="text-3xl font-medium tracking-tight mt-1 font-sans">
                     ₹{totalTripSpending.toLocaleString('en-IN')}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-[#8e918f]">Per Person (13)</div>
-                  <div className="text-lg font-medium text-[#a8c7fa] mt-1 font-sans">
+                  <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>Per Person (13)</div>
+                  <div
+                    className={`text-lg font-medium mt-1 font-sans ${
+                      isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'
+                    }`}
+                  >
                     ₹{(totalTripSpending / 13).toFixed(2)}
                   </div>
                 </div>
@@ -871,11 +1029,17 @@ export const OotyDashboardPage: React.FC = () => {
 
             {/* Simplified Settlements */}
             <div>
-              <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+              <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                 Direct Settlements Plan ({simplifiedDebts.length})
               </h2>
               {simplifiedDebts.length === 0 ? (
-                <div className="p-6 rounded-2xl bg-[#1e1f20] border border-[#282a2d] text-center text-sm text-[#34a853]">
+                <div
+                  className={`p-6 rounded-2xl border text-center text-sm font-medium ${
+                    isDark
+                      ? 'bg-[#1e1f20] border-[#282a2d] text-[#34a853]'
+                      : 'bg-[#ffffff] border-[#dadce0] text-[#137333]'
+                  }`}
+                >
                   ✨ Everyone is all settled up! Zero debts remaining.
                 </div>
               ) : (
@@ -883,15 +1047,19 @@ export const OotyDashboardPage: React.FC = () => {
                   {simplifiedDebts.map((debt, idx) => (
                     <div
                       key={idx}
-                      className="p-3.5 rounded-2xl bg-[#1e1f20] border border-[#282a2d] flex items-center justify-between text-xs"
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs ${
+                        isDark ? 'bg-[#1e1f20] border-[#282a2d]' : 'bg-[#ffffff] border-[#dadce0]'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-white">{debt.fromName}</span>
-                        <span className="text-[#8e918f]">owes</span>
-                        <span className="font-medium text-[#a8c7fa]">{debt.toName}</span>
+                        <span className="font-medium">{debt.fromName}</span>
+                        <span className={isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}>owes</span>
+                        <span className={`font-medium ${isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'}`}>
+                          {debt.toName}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-medium text-white">
+                        <span className="font-mono font-medium">
                           ₹{debt.amount.toLocaleString('en-IN')}
                         </span>
                         {(debt.from === currentUserId || debt.to === currentUserId) && (
@@ -904,7 +1072,11 @@ export const OotyDashboardPage: React.FC = () => {
                               });
                               setIsSettleUpOpen(true);
                             }}
-                            className="px-2.5 py-1 rounded-full bg-[#a8c7fa] text-[#041e49] font-medium text-[11px]"
+                            className={`px-3 py-1 rounded-full font-medium text-[11px] ${
+                              isDark
+                                ? 'bg-[#a8c7fa] text-[#041e49]'
+                                : 'bg-[#0b57d0] text-white'
+                            }`}
                           >
                             Settle
                           </button>
@@ -918,10 +1090,14 @@ export const OotyDashboardPage: React.FC = () => {
 
             {/* All 13 Individual Net Positions */}
             <div>
-              <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+              <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
                 All 13 Travelers Net Position
               </h2>
-              <div className="divide-y divide-[#1e1f20] bg-[#1e1f20] border border-[#282a2d] rounded-2xl overflow-hidden px-3">
+              <div
+                className={`divide-y border rounded-2xl overflow-hidden px-3 ${
+                  isDark ? 'bg-[#1e1f20] border-[#282a2d] divide-[#282a2d]' : 'bg-[#ffffff] border-[#dadce0] divide-[#e8eaed]'
+                }`}
+              >
                 {members.map((m) => {
                   const net = groupBalances[m.id]?.netBalance || 0;
                   return (
@@ -933,17 +1109,21 @@ export const OotyDashboardPage: React.FC = () => {
                         >
                           {m.name.charAt(0)}
                         </div>
-                        <span className="font-medium text-white">
+                        <span className="font-medium">
                           {m.name} {m.id === currentUserId ? '(You)' : ''}
                         </span>
                       </div>
                       <div
                         className={`font-mono font-medium ${
                           net > 0.5
-                            ? 'text-[#34a853]'
+                            ? isDark
+                              ? 'text-[#34a853]'
+                              : 'text-[#137333]'
                             : net < -0.5
                             ? 'text-[#ea4335]'
-                            : 'text-[#8e918f]'
+                            : isDark
+                            ? 'text-[#8e918f]'
+                            : 'text-[#5f6368]'
                         }`}
                       >
                         {net > 0.5 ? `+₹${net.toFixed(2)}` : net < -0.5 ? `-₹${Math.abs(net).toFixed(2)}` : '₹0.00'}
@@ -962,11 +1142,19 @@ export const OotyDashboardPage: React.FC = () => {
       {/* ========================================================================= */}
       {topTab === 'chat' ? (
         // EXACT CHAT BOTTOM BAR (Image 5: Split expense pill + Message... capsule)
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#000000]/95 backdrop-blur-md border-t border-[#1e1f20] px-3 py-2.5 max-w-xl mx-auto flex items-center gap-2">
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-3 py-2.5 max-w-xl mx-auto flex items-center gap-2 transition-colors ${
+            isDark ? 'bg-[#000000]/95 border-[#1e1f20]' : 'bg-[#ffffff]/95 border-[#dadce0]'
+          }`}
+        >
           {/* Split expense pill */}
           <button
             onClick={() => setIsSplitExpenseOpen(true)}
-            className="px-4 py-2.5 rounded-full border border-[#5e6368] hover:border-white text-white font-medium text-xs sm:text-sm shrink-0 active:scale-95 transition-colors"
+            className={`px-4 py-2.5 rounded-full border font-medium text-xs sm:text-sm shrink-0 active:scale-95 transition-colors ${
+              isDark
+                ? 'border-[#5e6368] hover:border-white text-white'
+                : 'border-[#dadce0] hover:bg-[#f1f3f4] text-[#202124]'
+            }`}
           >
             Split expense
           </button>
@@ -977,19 +1165,29 @@ export const OotyDashboardPage: React.FC = () => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="flex-1 flex items-center bg-[#1e1f20] border border-[#333538] focus-within:border-[#a8c7fa] rounded-full px-4 py-1.5 transition-colors"
+            className={`flex-1 flex items-center border rounded-full px-4 py-1.5 transition-colors ${
+              isDark
+                ? 'bg-[#1e1f20] border-[#333538] focus-within:border-[#a8c7fa]'
+                : 'bg-[#f1f3f4] border-[#dadce0] focus-within:border-[#1a73e8]'
+            }`}
           >
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Message..."
-              className="bg-transparent text-sm text-white placeholder-[#8e918f] focus:outline-none flex-1 py-1"
+              className={`bg-transparent text-sm focus:outline-none flex-1 py-1 ${
+                isDark ? 'text-white placeholder-[#8e918f]' : 'text-[#202124] placeholder-[#5f6368]'
+              }`}
             />
             <button
               type="submit"
               disabled={!chatInput.trim()}
-              className="p-1.5 text-[#a8c7fa] disabled:text-[#5e6368] hover:text-white transition-colors"
+              className={`p-1.5 transition-colors ${
+                isDark
+                  ? 'text-[#a8c7fa] disabled:text-[#5e6368] hover:text-white'
+                  : 'text-[#1a73e8] disabled:text-[#dadce0] hover:text-[#0b57d0]'
+              }`}
               title="Send message"
             >
               <Send className="w-4 h-4" />
@@ -999,10 +1197,18 @@ export const OotyDashboardPage: React.FC = () => {
       ) : (
         // EXPENSES FLOATING PILLS (Image 1: Split expense + Settle up)
         <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center px-4 pointer-events-none">
-          <div className="flex items-center gap-3 bg-[#000000]/90 backdrop-blur-lg p-1.5 rounded-full border border-[#282a2d] shadow-2xl pointer-events-auto">
+          <div
+            className={`flex items-center gap-3 backdrop-blur-lg p-1.5 rounded-full border shadow-2xl pointer-events-auto transition-colors ${
+              isDark ? 'bg-[#000000]/90 border-[#282a2d]' : 'bg-[#ffffff]/90 border-[#dadce0]'
+            }`}
+          >
             <button
               onClick={() => setIsSplitExpenseOpen(true)}
-              className="px-6 py-2.5 rounded-full border border-[#5e6368] hover:border-[#8e918f] text-white font-medium text-sm transition-colors active:scale-95"
+              className={`px-6 py-2.5 rounded-full border font-medium text-sm transition-colors active:scale-95 ${
+                isDark
+                  ? 'border-[#5e6368] hover:border-[#8e918f] text-white'
+                  : 'border-[#dadce0] hover:bg-[#f1f3f4] text-[#202124] bg-white'
+              }`}
             >
               Split expense
             </button>
@@ -1012,7 +1218,11 @@ export const OotyDashboardPage: React.FC = () => {
                 setSettlePrefill({});
                 setIsSettleUpOpen(true);
               }}
-              className="px-6 py-2.5 rounded-full bg-[#a8c7fa] hover:bg-[#b8d4ff] text-[#041e49] font-medium text-sm transition-colors active:scale-95 shadow-sm"
+              className={`px-6 py-2.5 rounded-full font-medium text-sm transition-colors active:scale-95 shadow-sm ${
+                isDark
+                  ? 'bg-[#a8c7fa] hover:bg-[#b8d4ff] text-[#041e49]'
+                  : 'bg-[#0b57d0] hover:bg-[#1a73e8] text-white'
+              }`}
             >
               Settle up
             </button>
