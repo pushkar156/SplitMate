@@ -27,16 +27,16 @@ interface GroupAnalyticsTabProps {
 }
 
 const COLORS = [
-  '#8B7CFF',
-  '#48D6B0',
-  '#FF727A',
-  '#F59E0B',
-  '#3B82F6',
-  '#EC4899',
-  '#10B981',
-  '#6366F1',
-  '#14B8A6',
-  '#84CC16',
+  '#FF5B42', // Retro Coral
+  '#FFD749', // Retro Gold
+  '#802C62', // Retro Berry
+  '#421454', // Retro Plum
+  '#FF7E6B',
+  '#FFE27A',
+  '#A03B7C',
+  '#63207E',
+  '#FA8C16',
+  '#13C2C2',
 ];
 
 export const GroupAnalyticsTab: React.FC<GroupAnalyticsTabProps> = ({
@@ -118,7 +118,7 @@ export const GroupAnalyticsTab: React.FC<GroupAnalyticsTabProps> = ({
 
       // Header
       doc.setFontSize(20);
-      doc.setTextColor(105, 88, 232); // Primary accent
+      doc.setTextColor(66, 20, 84); // Retro Plum (#421454)
       doc.text('SplitMate Financial Summary', 14, 20);
 
       doc.setFontSize(12);
@@ -142,7 +142,7 @@ export const GroupAnalyticsTab: React.FC<GroupAnalyticsTabProps> = ({
 
       // Member Net Balances Table
       doc.setFontSize(13);
-      doc.setTextColor(105, 88, 232);
+      doc.setTextColor(128, 44, 98); // Retro Berry (#802C62)
       doc.text('Member Balance Settlement Summary', 14, 72);
 
       let yPos = 80;
@@ -172,7 +172,7 @@ export const GroupAnalyticsTab: React.FC<GroupAnalyticsTabProps> = ({
       doc.line(14, yPos, 196, yPos);
       yPos += 8;
       doc.setFontSize(13);
-      doc.setTextColor(105, 88, 232);
+      doc.setTextColor(255, 91, 66); // Retro Coral (#FF5B42)
       doc.text('Itemized Group Expenses', 14, yPos);
 
       yPos += 8;
@@ -360,8 +360,8 @@ export const GroupAnalyticsTab: React.FC<GroupAnalyticsTabProps> = ({
                       fontSize: '12px',
                     }}
                   />
-                  <Bar dataKey="paid" fill="#8B7CFF" radius={[4, 4, 0, 0]} name="paid" />
-                  <Bar dataKey="share" fill="#48D6B0" radius={[4, 4, 0, 0]} name="share" />
+                  <Bar dataKey="paid" fill="#FF5B42" radius={[4, 4, 0, 0]} name="paid" />
+                  <Bar dataKey="share" fill="#FFD749" radius={[4, 4, 0, 0]} name="share" />
                 </BarChart>
               </ResponsiveContainer>
             </div>

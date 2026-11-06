@@ -1,9 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="16" fill="#0B0D12"/>
-  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#8B7CFF" stroke-width="2" stroke-opacity="0.3"/>
-  <path d="M18 24C18 21.7909 19.7909 20 22 20H32C36.4183 20 40 23.5817 40 28C40 32.4183 36.4183 36 32 36H24" stroke="#8B7CFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M46 40C46 42.2091 44.2091 44 42 44H32C27.5817 44 24 40.4183 24 36C24 31.5817 27.5817 28 32 28H40" stroke="#48D6B0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="20" cy="44" r="3" fill="#48D6B0"/>
-  <circle cx="44" cy="20" r="3" fill="#8B7CFF"/>
+  <rect width="64" height="64" rx="16" fill="#421454"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#802C62" stroke-width="2" stroke-opacity="0.8"/>
+  <path d="M18 24C18 21.7909 19.7909 20 22 20H32C36.4183 20 40 23.5817 40 28C40 32.4183 36.4183 36 32 36H24" stroke="#FF5B42" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 40C46 42.2091 44.2091 44 42 44H32C27.5817 44 24 40.4183 24 36C24 31.5817 27.5817 28 32 28H40" stroke="#FFD749" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20" cy="44" r="3.5" fill="#FFD749"/>
+  <circle cx="44" cy="20" r="3.5" fill="#FF5B42"/>
 </svg>
-

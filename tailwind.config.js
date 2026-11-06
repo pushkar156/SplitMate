@@ -30,6 +30,12 @@ export default {
           DEFAULT: 'var(--negative-balance)',
           bg: 'var(--negative-bg)',
         },
+        retro: {
+          plum: '#421454',
+          berry: '#802C62',
+          coral: '#FF5B42',
+          gold: '#FFD749',
+        },
         foreground: 'var(--text-primary)',
         'foreground-muted': 'var(--text-secondary)',
         border: 'var(--border-color)',
@@ -37,20 +43,24 @@ export default {
         ring: 'var(--accent-primary)',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Outfit', 'Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Space Grotesk', 'Outfit', 'sans-serif'],
+        mono: ['Space Grotesk', 'monospace'],
       },
       borderRadius: {
+        xl: '1rem',
+        '2xl': '1.25rem',
         lg: '0.75rem',
         md: '0.5rem',
         sm: '0.375rem',
       },
       boxShadow: {
-        'subtle': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03)',
-        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04)',
-        'elevated': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        'retro': '3px 3px 0px 0px rgba(66, 20, 84, 0.25)',
+        'retro-dark': '3px 3px 0px 0px rgba(0, 0, 0, 0.5)',
+        'card': '0 4px 12px -2px rgba(66, 20, 84, 0.08), 0 2px 6px -1px rgba(66, 20, 84, 0.04)',
+        'elevated': '0 12px 24px -4px rgba(66, 20, 84, 0.14), 0 4px 8px -2px rgba(66, 20, 84, 0.08)',
       }
     },
   },
   plugins: [],
 }
-

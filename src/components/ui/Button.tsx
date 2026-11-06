@@ -18,7 +18,7 @@ const buttonVariants = cva(
         danger:
           'bg-negative text-white hover:opacity-90 shadow-sm active:translate-y-[1px]',
         positive:
-          'bg-positive text-white hover:opacity-90 shadow-sm active:translate-y-[1px]',
+          'bg-positive text-[#421454] dark:text-[#1C0726] font-semibold hover:opacity-95 shadow-sm active:translate-y-[1px]',
       },
       size: {
         sm: 'h-8 px-3 text-xs',

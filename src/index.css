@@ -4,64 +4,71 @@
 
 @layer base {
   :root {
-    --bg-main: #F6F7FB;
+    /* Retro Light Theme: Warm newsprint paper with Deep Plum, Coral, Berry and Mustard */
+    --bg-main: #FDF9F0;
     --bg-secondary: #FFFFFF;
     --bg-card: #FFFFFF;
-    --bg-elevated: #F0F2F8;
-    --accent-primary: #6958E8;
-    --accent-primary-hover: #5846D6;
-    --accent-primary-muted: rgba(105, 88, 232, 0.12);
-    --accent-secondary: #119B79;
-    --accent-secondary-hover: #0E8366;
-    --accent-secondary-muted: rgba(17, 155, 121, 0.12);
-    --positive-balance: #138A63;
-    --positive-bg: rgba(19, 138, 99, 0.12);
-    --negative-balance: #D94B59;
-    --negative-bg: rgba(217, 75, 89, 0.12);
-    --text-primary: #171923;
-    --text-secondary: #697080;
-    --border-color: #E8EAF0;
+    --bg-elevated: #F6EDDC;
+    --accent-primary: #FF5B42;
+    --accent-primary-hover: #E8452D;
+    --accent-primary-muted: rgba(255, 91, 66, 0.12);
+    --accent-secondary: #802C62;
+    --accent-secondary-hover: #67214E;
+    --accent-secondary-muted: rgba(128, 44, 98, 0.12);
+    --positive-balance: #0F8C64;
+    --positive-bg: rgba(255, 215, 73, 0.35);
+    --negative-balance: #FF5B42;
+    --negative-bg: rgba(255, 91, 66, 0.12);
+    --text-primary: #421454;
+    --text-secondary: #785382;
+    --border-color: #EBDDC4;
   }
 
   .dark {
-    --bg-main: #0B0D12;
-    --bg-secondary: #11151D;
-    --bg-card: #171C26;
-    --bg-elevated: #1D2430;
-    --accent-primary: #8B7CFF;
-    --accent-primary-hover: #9E92FF;
-    --accent-primary-muted: rgba(139, 124, 255, 0.15);
-    --accent-secondary: #48D6B0;
-    --accent-secondary-hover: #5FE2BF;
-    --accent-secondary-muted: rgba(72, 214, 176, 0.15);
-    --positive-balance: #36C995;
-    --positive-bg: rgba(54, 201, 149, 0.15);
-    --negative-balance: #FF727A;
-    --negative-bg: rgba(255, 114, 122, 0.15);
-    --text-primary: #F4F5FA;
-    --text-secondary: #9299AA;
-    --border-color: #272E3B;
+    /* Retro Dark Theme: Deep Plum Velvet with Golden Mustard, Sunset Coral and Berry Wine */
+    --bg-main: #1C0726;
+    --bg-secondary: #260A33;
+    --bg-card: #2F0D3F;
+    --bg-elevated: #421454;
+    --accent-primary: #FF5B42;
+    --accent-primary-hover: #FF7560;
+    --accent-primary-muted: rgba(255, 91, 66, 0.22);
+    --accent-secondary: #802C62;
+    --accent-secondary-hover: #9E377A;
+    --accent-secondary-muted: rgba(128, 44, 98, 0.32);
+    --positive-balance: #FFD749;
+    --positive-bg: rgba(255, 215, 73, 0.18);
+    --negative-balance: #FF5B42;
+    --negative-bg: rgba(255, 91, 66, 0.2);
+    --text-primary: #FFF9EE;
+    --text-secondary: #D4B6DC;
+    --border-color: #5A1E6E;
   }
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-feature-settings: 'tnum' on, 'lnum' on, 'cv02' on, 'cv03' on, 'cv04' on;
+  font-family: 'Outfit', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  letter-spacing: -0.01em;
 }
 
-/* Custom scrollbars */
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Space Grotesk', 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Retro scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.2);
+  background: rgba(128, 44, 98, 0.3);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.4);
+  background: rgba(255, 91, 66, 0.5);
 }
-

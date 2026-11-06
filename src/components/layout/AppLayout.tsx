@@ -40,9 +40,9 @@ export const AppLayout: React.FC = () => {
                 <Receipt className="h-5 w-5 text-white" />
               </div>
               <div>
-                <span className="text-base font-bold tracking-tight text-foreground">SplitMate</span>
-                <span className="hidden sm:inline-block ml-2 text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-primary-muted text-primary">
-                  Fintech
+                <span className="text-base font-bold tracking-tight text-foreground font-heading">SplitMate</span>
+                <span className="hidden sm:inline-block ml-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-primary-muted text-primary border border-primary/20">
+                  Retro
                 </span>
               </div>
             </Link>
