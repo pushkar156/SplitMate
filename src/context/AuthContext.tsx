@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return () => unsubscribe();
     } else {
-      // Local demo mode: initialize from dataService
+      // If Firebase keys are not loaded yet, allow manual demo switching
       setUser(dataService.getCurrentUser());
       setLoading(false);
     }
@@ -133,26 +133,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithGoogle = async (): Promise<{ error: Error | null }> => {
-    if (isLiveFirebase && auth) {
-      try {
-        const res = await signInWithPopup(auth, googleProvider);
-        await syncFirestoreUserProfile(res.user);
-        return { error: null };
-      } catch (err: unknown) {
-        return { error: err instanceof Error ? err : new Error(String(err)) };
-      }
+    if (!isLiveFirebase || !auth) {
+      return {
+        error: new Error(
+          'Firebase is not active. If you just added keys to .env, please restart your Vite dev server (press Ctrl+C in terminal and run npm run dev).'
+        ),
+      };
     }
 
-    // Demo mode: log in as Google Persona
-    const demoGoogleUser: UserProfile = {
-      id: `u-google-${Date.now()}`,
-      fullName: 'Google User',
-      email: 'user@gmail.com',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop',
-    };
-    dataService.setCurrentUser(demoGoogleUser);
-    setUser(demoGoogleUser);
-    return { error: null };
+    try {
+      const res = await signInWithPopup(auth, googleProvider);
+      await syncFirestoreUserProfile(res.user);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Firebase Google popup error:', err);
+      let userFriendlyMsg = err.message || 'Google authentication failed';
+
+      if (err.code === 'auth/popup-closed-by-user') {
+        userFriendlyMsg = 'Google Sign-In popup was closed before completion.';
+      } else if (err.code === 'auth/popup-blocked') {
+        userFriendlyMsg = 'Sign-in popup was blocked by your browser. Please allow popups for localhost.';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        userFriendlyMsg = 'Google Sign-In is not enabled yet in your Firebase Console. Go to Authentication -> Sign-in method -> Google and toggle Enable.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        userFriendlyMsg = 'This domain is not authorized in Firebase Console -> Authentication -> Settings -> Authorized domains.';
+      }
+
+      return { error: new Error(userFriendlyMsg) };
+    }
   };
 
   const signOut = async () => {

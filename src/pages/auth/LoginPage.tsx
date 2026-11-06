@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signInWithEmail, signInWithGoogle, isLiveFirebase } = useAuth();
+  const { signInWithEmail, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('aarav@splitmate.app');
   const [password, setPassword] = useState('password123');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,14 +39,11 @@ export const LoginPage: React.FC = () => {
     const { error } = await signInWithGoogle();
     setIsGoogleLoading(false);
     if (error) {
-      toast.error(error.message);
-    } else if (!isLiveFirebase) {
-      toast.success('Signed in with Google (Demo Persona)');
-      navigate('/dashboard');
-    } else {
-      toast.success('Signed in with Google!');
-      navigate('/dashboard');
+      toast.error(error.message, { duration: 6000 });
+      return;
     }
+    toast.success('Signed in with Google!');
+    navigate('/dashboard');
   };
 
   return (
