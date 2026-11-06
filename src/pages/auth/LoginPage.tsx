@@ -9,10 +9,11 @@ import { toast } from 'sonner';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signInWithEmail, isLiveSupabase } = useAuth();
+  const { signInWithEmail, signInWithGoogle, isLiveSupabase } = useAuth();
   const [email, setEmail] = useState('aarav@splitmate.app');
   const [password, setPassword] = useState('password123');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,11 +34,15 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleOAuthLogin = () => {
-    if (!isLiveSupabase) {
-      toast.info('Google OAuth requires configuring Supabase Auth credentials in .env');
-    } else {
-      toast.info('Redirecting to Google OAuth provider...');
+  const handleOAuthLogin = async () => {
+    setIsGoogleLoading(true);
+    const { error } = await signInWithGoogle();
+    setIsGoogleLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else if (!isLiveSupabase) {
+      toast.success('Signed in with Google (Demo Persona)');
+      navigate('/dashboard');
     }
   };
 
@@ -109,6 +114,7 @@ export const LoginPage: React.FC = () => {
                 type="button"
                 variant="outline"
                 className="w-full"
+                isLoading={isGoogleLoading}
                 onClick={handleOAuthLogin}
               >
                 <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">

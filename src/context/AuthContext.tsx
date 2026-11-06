@@ -3,6 +3,7 @@ import { UserProfile } from '../types';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { dataService } from '../services/dataService';
 import { DEMO_USERS } from '../services/mockData';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -10,6 +11,7 @@ interface AuthContextType {
   isLiveSupabase: boolean;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   switchDemoUser: (userId: string) => void;
   availableDemoUsers: UserProfile[];
@@ -22,12 +24,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const isLiveSupabase = isSupabaseConfigured();
 
+  const fetchSupabaseProfile = async (sessionUser: SupabaseUser) => {
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sessionUser.id)
+        .maybeSingle();
+
+      if (!error && data) {
+        setUser({
+          id: data.id,
+          fullName: data.full_name || sessionUser.user_metadata?.full_name || sessionUser.user_metadata?.name || 'User',
+          avatarUrl: data.avatar_url || sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
+          email: sessionUser.email,
+        });
+      } else {
+        // Fallback for new Google OAuth user before/during trigger sync
+        setUser({
+          id: sessionUser.id,
+          fullName:
+            sessionUser.user_metadata?.full_name ||
+            sessionUser.user_metadata?.name ||
+            sessionUser.email?.split('@')[0] ||
+            'User',
+          avatarUrl:
+            sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
+          email: sessionUser.email,
+        });
+
+        // Ensure profile row exists in case trigger hasn't fired yet
+        await supabase.from('profiles').upsert({
+          id: sessionUser.id,
+          full_name:
+            sessionUser.user_metadata?.full_name ||
+            sessionUser.user_metadata?.name ||
+            sessionUser.email?.split('@')[0] ||
+            'User',
+          avatar_url:
+            sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load profile:', err);
+      // Fallback
+      setUser({
+        id: sessionUser.id,
+        fullName: sessionUser.user_metadata?.full_name || sessionUser.email?.split('@')[0] || 'User',
+        avatarUrl: sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
+        email: sessionUser.email,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isLiveSupabase && supabase) {
       // Real Supabase session initialization
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
-          fetchSupabaseProfile(session.user.id);
+          fetchSupabaseProfile(session.user);
         } else {
           setUser(null);
           setLoading(false);
@@ -36,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
-          fetchSupabaseProfile(session.user.id);
+          fetchSupabaseProfile(session.user);
         } else {
           setUser(null);
           setLoading(false);
@@ -52,30 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   }, [isLiveSupabase]);
-
-  const fetchSupabaseProfile = async (userId: string) => {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (!error && data) {
-        setUser({
-          id: data.id,
-          fullName: data.full_name,
-          avatarUrl: data.avatar_url,
-          email: data.email,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to load profile:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signInWithEmail = async (email: string, password: string): Promise<{ error: Error | null }> => {
     if (isLiveSupabase && supabase) {
@@ -115,6 +149,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: null };
   };
 
+  const signInWithGoogle = async (): Promise<{ error: Error | null }> => {
+    if (isLiveSupabase && supabase) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+      return { error: error ? new Error(error.message) : null };
+    }
+
+    // If Supabase credentials are not in .env yet, simulate login as Google user in demo mode
+    const demoGoogleUser: UserProfile = {
+      id: `u-google-${Date.now()}`,
+      fullName: 'Google User',
+      email: 'user@gmail.com',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop',
+    };
+    dataService.setCurrentUser(demoGoogleUser);
+    setUser(demoGoogleUser);
+    return { error: null };
+  };
+
   const signOut = async () => {
     if (isLiveSupabase && supabase) {
       await supabase.auth.signOut();
@@ -138,6 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLiveSupabase,
         signInWithEmail,
         signUpWithEmail,
+        signInWithGoogle,
         signOut,
         switchDemoUser,
         availableDemoUsers: DEMO_USERS,
@@ -155,4 +217,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
