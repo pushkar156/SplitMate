@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import {
   OotyExpense,
   OotySettlement,
+  OotyMember,
   OOTY_MEMBERS,
   OOTY_CATEGORIES,
   calculateOotyBalances,
@@ -14,6 +15,7 @@ import {
   subscribeToOotyData,
   deleteOotyExpense,
   deleteOotySettlement,
+  SyncStatus,
 } from '../../services/ootyDataService';
 import { AddExpenseModal } from '../../components/ooty/AddExpenseModal';
 import { RecordSettlementModal } from '../../components/ooty/RecordSettlementModal';
@@ -52,6 +54,8 @@ export const OotyDashboardPage: React.FC = () => {
 
   const [expenses, setExpenses] = useState<OotyExpense[]>([]);
   const [settlements, setSettlements] = useState<OotySettlement[]>([]);
+  const [members, setMembers] = useState<OotyMember[]>(OOTY_MEMBERS);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ isConnected: true, isSyncing: false });
   const [activeTab, setActiveTab] = useState<'expenses' | 'simplified' | 'members' | 'settlements' | 'analytics'>('expenses');
 
   // Modals state
@@ -67,20 +71,24 @@ export const OotyDashboardPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
-  // Subscribe to real-time Ooty data
+  // Subscribe to real-time Ooty data (Live Cloud Firestore)
   useEffect(() => {
-    const unsubscribe = subscribeToOotyData((newExpenses, newSettlements) => {
+    const unsubscribe = subscribeToOotyData((newExpenses, newSettlements, newMembers, newSyncStatus) => {
       setExpenses(newExpenses);
       setSettlements(newSettlements);
+      if (newMembers && newMembers.length > 0) {
+        setMembers(newMembers);
+      }
+      setSyncStatus(newSyncStatus);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Compute Balances
+  // Compute Balances live with database members
   const balances = useMemo(() => {
-    return calculateOotyBalances(expenses, settlements);
-  }, [expenses, settlements]);
+    return calculateOotyBalances(expenses, settlements, members);
+  }, [expenses, settlements, members]);
 
   // Compute Simplified Debts
   const simplifiedDebts = useMemo(() => {
@@ -125,11 +133,11 @@ export const OotyDashboardPage: React.FC = () => {
       const matchesSearch =
         e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         e.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        OOTY_MEMBERS.find((m) => m.id === e.paidBy)?.name.toLowerCase().includes(searchTerm.toLowerCase());
+        members.find((m) => m.id === e.paidBy)?.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'ALL' || e.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [expenses, searchTerm, selectedCategory]);
+  }, [expenses, searchTerm, selectedCategory, members]);
 
   const handleLogout = () => {
     if (window.confirm('Do you want to log out of this device?')) {
@@ -143,9 +151,9 @@ export const OotyDashboardPage: React.FC = () => {
     if (window.confirm(`Delete expense "${title}"?`)) {
       try {
         await deleteOotyExpense(id);
-        toast.success('Expense deleted');
-      } catch (err) {
-        toast.error('Could not delete expense');
+        toast.success('Expense deleted and synced with database live 🗑️');
+      } catch (err: any) {
+        toast.error('Could not delete expense: ' + (err.message || 'Error'));
       }
     }
   };
@@ -154,9 +162,9 @@ export const OotyDashboardPage: React.FC = () => {
     if (window.confirm('Delete this settlement record?')) {
       try {
         await deleteOotySettlement(id);
-        toast.success('Settlement record deleted');
-      } catch (err) {
-        toast.error('Could not delete settlement');
+        toast.success('Settlement record deleted and synced with database live 🗑️');
+      } catch (err: any) {
+        toast.error('Could not delete settlement: ' + (err.message || 'Error'));
       }
     }
   };
@@ -165,7 +173,7 @@ export const OotyDashboardPage: React.FC = () => {
   const copyWhatsAppSummary = () => {
     let text = `🌲 *OOTY TRIP 2024 - EXPENSE SUMMARY* 🏔️\n\n`;
     text += `💰 *Total Trip Spend:* ₹${totalTripSpending.toLocaleString('en-IN')}\n`;
-    text += `👥 *Total Travelers:* 13 Members\n\n`;
+    text += `👥 *Total Travelers:* ${members.length} Members\n\n`;
     text += `⚖️ *WHO OWES WHOM (Simplified Settlements):*\n`;
 
     if (simplifiedDebts.length === 0) {
@@ -177,7 +185,7 @@ export const OotyDashboardPage: React.FC = () => {
     }
 
     text += `\n📊 *MEMBER BALANCES SUMMARY:*\n`;
-    OOTY_MEMBERS.forEach((m) => {
+    members.forEach((m) => {
       const b = balances[m.id];
       const net = b ? b.netBalance : 0;
       if (net > 0) {
@@ -199,8 +207,8 @@ export const OotyDashboardPage: React.FC = () => {
   const downloadCSV = () => {
     const headers = ['Date', 'Title', 'Category', 'Paid By', 'Amount (INR)', 'Split Count', 'Split With', 'Notes'];
     const rows = expenses.map((e) => {
-      const payerName = OOTY_MEMBERS.find((m) => m.id === e.paidBy)?.name || e.paidBy;
-      const splitNames = e.splitWith.map((id) => OOTY_MEMBERS.find((m) => m.id === id)?.name || id).join('; ');
+      const payerName = members.find((m) => m.id === e.paidBy)?.name || e.paidBy;
+      const splitNames = e.splitWith.map((id) => members.find((m) => m.id === id)?.name || id).join('; ');
       return [
         `"${e.date}"`,
         `"${e.title.replace(/"/g, '""')}"`,
@@ -244,11 +252,19 @@ export const OotyDashboardPage: React.FC = () => {
                 </span>
               </div>
               <div className="text-[11px] text-retro-text-muted flex items-center gap-1.5">
-                <span>13 Travelers</span>
+                <span>{members.length} Travelers</span>
                 <span>•</span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-retro-teal animate-pulse" />
-                  Live Sync
+                <span
+                  className={`inline-flex items-center gap-1 font-semibold ${
+                    syncStatus.isConnected ? 'text-retro-teal' : 'text-retro-gold'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      syncStatus.isConnected ? 'bg-retro-teal animate-pulse' : 'bg-retro-gold'
+                    }`}
+                  />
+                  {syncStatus.isConnected ? 'Live Database' : 'Syncing'}
                 </span>
               </div>
             </div>
@@ -526,7 +542,7 @@ export const OotyDashboardPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {filteredExpenses.map((exp) => {
-                  const payer = OOTY_MEMBERS.find((m) => m.id === exp.paidBy);
+                  const payer = members.find((m) => m.id === exp.paidBy);
                   const isUserPayer = exp.paidBy === currentUserId;
                   const isUserInvolved = exp.splitWith.includes(currentUserId);
                   const userShare = isUserInvolved ? exp.amount / exp.splitWith.length : 0;
@@ -636,8 +652,8 @@ export const OotyDashboardPage: React.FC = () => {
                   const isYouCreditor = debt.to === currentUserId;
                   const involvesYou = isYouDebtor || isYouCreditor;
 
-                  const fromM = OOTY_MEMBERS.find((m) => m.id === debt.from);
-                  const toM = OOTY_MEMBERS.find((m) => m.id === debt.to);
+                  const fromM = members.find((m) => m.id === debt.from);
+                  const toM = members.find((m) => m.id === debt.to);
 
                   return (
                     <div
@@ -755,7 +771,7 @@ export const OotyDashboardPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-retro-border font-medium">
-                  {OOTY_MEMBERS.map((m) => {
+                  {members.map((m) => {
                     const b = balances[m.id] || {
                       totalPaid: 0,
                       totalShare: 0,
@@ -883,8 +899,8 @@ export const OotyDashboardPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {settlements.map((set) => {
-                  const fromM = OOTY_MEMBERS.find((m) => m.id === set.fromMemberId);
-                  const toM = OOTY_MEMBERS.find((m) => m.id === set.toMemberId);
+                  const fromM = members.find((m) => m.id === set.fromMemberId);
+                  const toM = members.find((m) => m.id === set.toMemberId);
 
                   return (
                     <div
@@ -990,7 +1006,7 @@ export const OotyDashboardPage: React.FC = () => {
               </p>
 
               <div className="space-y-3">
-                {OOTY_MEMBERS.map((m) => {
+                {members.map((m) => {
                   const paid = balances[m.id]?.totalPaid || 0;
                   const percent = totalTripSpending > 0 ? (paid / totalTripSpending) * 100 : 0;
 
@@ -1036,6 +1052,7 @@ export const OotyDashboardPage: React.FC = () => {
         isOpen={isAddExpenseOpen}
         onClose={() => setIsAddExpenseOpen(false)}
         currentUserId={currentUserId}
+        members={members}
       />
 
       <RecordSettlementModal
@@ -1044,6 +1061,7 @@ export const OotyDashboardPage: React.FC = () => {
         defaultFromId={settlementPrefill.fromId}
         defaultToId={settlementPrefill.toId}
         defaultAmount={settlementPrefill.amount}
+        members={members}
       />
     </div>
   );

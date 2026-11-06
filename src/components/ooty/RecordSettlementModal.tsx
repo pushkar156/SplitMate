@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OOTY_MEMBERS } from '../../types/ooty';
+import { OOTY_MEMBERS, OotyMember } from '../../types/ooty';
 import { addOotySettlement } from '../../services/ootyDataService';
 import { X, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ interface RecordSettlementModalProps {
   defaultFromId?: string;
   defaultToId?: string;
   defaultAmount?: number;
+  members?: OotyMember[];
 }
 
 export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
@@ -18,7 +19,9 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
   defaultFromId,
   defaultToId,
   defaultAmount,
+  members = OOTY_MEMBERS,
 }) => {
+  const activeMembers = members.length > 0 ? members : OOTY_MEMBERS;
   const [fromId, setFromId] = useState(defaultFromId || 'pushkar');
   const [toId, setToId] = useState(defaultToId || 'jitendra');
   const [amount, setAmount] = useState(defaultAmount ? defaultAmount.toString() : '');
@@ -72,8 +75,8 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
     }
   };
 
-  const fromMember = OOTY_MEMBERS.find((m) => m.id === fromId);
-  const toMember = OOTY_MEMBERS.find((m) => m.id === toId);
+  const fromMember = activeMembers.find((m) => m.id === fromId);
+  const toMember = activeMembers.find((m) => m.id === toId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
@@ -147,7 +150,7 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
                 onChange={(e) => setFromId(e.target.value)}
                 className="w-full bg-retro-surface border-2 border-retro-border rounded-xl px-3 py-2 text-retro-text-primary text-xs font-medium focus:outline-none focus:border-retro-coral cursor-pointer"
               >
-                {OOTY_MEMBERS.map((m) => (
+                {activeMembers.map((m) => (
                   <option key={m.id} value={m.id} className="bg-retro-surface">
                     {m.name}
                   </option>
@@ -164,7 +167,7 @@ export const RecordSettlementModal: React.FC<RecordSettlementModalProps> = ({
                 onChange={(e) => setToId(e.target.value)}
                 className="w-full bg-retro-surface border-2 border-retro-border rounded-xl px-3 py-2 text-retro-text-primary text-xs font-medium focus:outline-none focus:border-retro-coral cursor-pointer"
               >
-                {OOTY_MEMBERS.map((m) => (
+                {activeMembers.map((m) => (
                   <option key={m.id} value={m.id} className="bg-retro-surface">
                     {m.name}
                   </option>

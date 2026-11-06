@@ -2,22 +2,23 @@ export interface OotyMember {
   id: string;
   name: string;
   avatarColor: string;
+  order?: number;
 }
 
 export const OOTY_MEMBERS: OotyMember[] = [
-  { id: 'pushkar', name: 'Pushkar', avatarColor: '#FF5B42' },
-  { id: 'jitendra', name: 'Jitendra', avatarColor: '#802C62' },
-  { id: 'gayatri', name: 'Gayatri', avatarColor: '#FFD749' },
-  { id: 'pundlik', name: 'Pundlik', avatarColor: '#421454' },
-  { id: 'surekha', name: 'Surekha', avatarColor: '#FF5B42' },
-  { id: 'kalpana', name: 'Kalpana', avatarColor: '#802C62' },
-  { id: 'pradip', name: 'Pradip', avatarColor: '#FFD749' },
-  { id: 'jyoti', name: 'Jyoti', avatarColor: '#421454' },
-  { id: 'rajendra', name: 'Rajendra', avatarColor: '#FF5B42' },
-  { id: 'jayashri', name: 'Jayashri', avatarColor: '#802C62' },
-  { id: 'disha', name: 'Disha', avatarColor: '#FFD749' },
-  { id: 'siddhesh', name: 'Siddhesh', avatarColor: '#421454' },
-  { id: 'raj', name: 'Raj', avatarColor: '#FF5B42' },
+  { id: 'pushkar', name: 'Pushkar', avatarColor: '#FF5B42', order: 1 },
+  { id: 'jitendra', name: 'Jitendra', avatarColor: '#802C62', order: 2 },
+  { id: 'gayatri', name: 'Gayatri', avatarColor: '#FFD749', order: 3 },
+  { id: 'pundlik', name: 'Pundlik', avatarColor: '#421454', order: 4 },
+  { id: 'surekha', name: 'Surekha', avatarColor: '#FF5B42', order: 5 },
+  { id: 'kalpana', name: 'Kalpana', avatarColor: '#802C62', order: 6 },
+  { id: 'pradip', name: 'Pradip', avatarColor: '#FFD749', order: 7 },
+  { id: 'jyoti', name: 'Jyoti', avatarColor: '#421454', order: 8 },
+  { id: 'rajendra', name: 'Rajendra', avatarColor: '#FF5B42', order: 9 },
+  { id: 'jayashri', name: 'Jayashri', avatarColor: '#802C62', order: 10 },
+  { id: 'disha', name: 'Disha', avatarColor: '#FFD749', order: 11 },
+  { id: 'siddhesh', name: 'Siddhesh', avatarColor: '#421454', order: 12 },
+  { id: 'raj', name: 'Raj', avatarColor: '#FF5B42', order: 13 },
 ];
 
 export const OOTY_PASSWORD = '1234567890';
@@ -88,11 +89,12 @@ export interface SimplifiedDebt {
  */
 export function calculateOotyBalances(
   expenses: OotyExpense[],
-  settlements: OotySettlement[] = []
+  settlements: OotySettlement[] = [],
+  members: OotyMember[] = OOTY_MEMBERS
 ): Record<string, MemberBalanceSummary> {
   const summaries: Record<string, MemberBalanceSummary> = {};
 
-  for (const m of OOTY_MEMBERS) {
+  for (const m of members) {
     summaries[m.id] = {
       memberId: m.id,
       name: m.name,
@@ -138,7 +140,7 @@ export function calculateOotyBalances(
 
   // 3. Compute Net Balance
   // Net Balance = (Total Paid - Total Share) + Settlements Paid - Settlements Received
-  for (const m of OOTY_MEMBERS) {
+  for (const m of members) {
     const s = summaries[m.id];
     s.netBalance =
       Math.round(

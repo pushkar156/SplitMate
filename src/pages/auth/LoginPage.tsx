@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { OOTY_MEMBERS } from '../../types/ooty';
+import { OOTY_MEMBERS, OotyMember } from '../../types/ooty';
+import { subscribeToOotyData } from '../../services/ootyDataService';
 import { Compass, Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -9,14 +10,25 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, user } = useAuth();
 
+  const [members, setMembers] = useState<OotyMember[]>(OOTY_MEMBERS);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('pushkar');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Subscribe to live members from database
+  useEffect(() => {
+    const unsub = subscribeToOotyData((_exp, _set, liveMembers) => {
+      if (liveMembers && liveMembers.length > 0) {
+        setMembers(liveMembers);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   // If already logged in, redirect immediately
-  React.useEffect(() => {
+  useEffect(() => {
     if (user) {
       navigate('/', { replace: true });
     }
@@ -41,7 +53,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(false);
 
     if (result.success) {
-      const member = OOTY_MEMBERS.find((m) => m.id === selectedMemberId);
+      const member = members.find((m) => m.id === selectedMemberId);
       toast.success(`Welcome to Ooty Trip, ${member?.name}! 🌲⛰️`);
       navigate('/', { replace: true });
     } else {
@@ -50,7 +62,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const selectedMember = OOTY_MEMBERS.find((m) => m.id === selectedMemberId);
+  const selectedMember = members.find((m) => m.id === selectedMemberId);
 
   return (
     <div className="min-h-screen bg-retro-bg flex items-center justify-center p-4 relative overflow-hidden">
@@ -112,7 +124,7 @@ export const LoginPage: React.FC = () => {
                   }}
                   className="w-full bg-retro-surface border-2 border-retro-border rounded-xl px-4 py-3 text-retro-text-primary font-medium focus:outline-none focus:border-retro-coral transition-colors appearance-none cursor-pointer"
                 >
-                  {OOTY_MEMBERS.map((m) => (
+                  {members.map((m) => (
                     <option key={m.id} value={m.id} className="bg-retro-surface text-retro-text-primary">
                       {m.name}
                     </option>
@@ -209,7 +221,7 @@ export const LoginPage: React.FC = () => {
             The 13 Ooty Travelers
           </div>
           <div className="flex flex-wrap gap-1.5 justify-center">
-            {OOTY_MEMBERS.map((m) => (
+            {members.map((m) => (
               <button
                 key={m.id}
                 type="button"

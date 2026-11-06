@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { OotyCategory, OOTY_CATEGORIES, OOTY_MEMBERS } from '../../types/ooty';
+import React, { useState, useEffect } from 'react';
+import { OotyCategory, OOTY_CATEGORIES, OOTY_MEMBERS, OotyMember } from '../../types/ooty';
 import { addOotyExpense } from '../../services/ootyDataService';
 import { X, Check, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,23 +8,33 @@ interface AddExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUserId: string;
+  members?: OotyMember[];
 }
 
 export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   isOpen,
   onClose,
   currentUserId,
+  members = OOTY_MEMBERS,
 }) => {
+  const activeMembers = members.length > 0 ? members : OOTY_MEMBERS;
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<OotyCategory>('Food & Drinks');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paidBy, setPaidBy] = useState(currentUserId);
   const [selectedSplitIds, setSelectedSplitIds] = useState<string[]>(
-    OOTY_MEMBERS.map((m) => m.id)
+    activeMembers.map((m) => m.id)
   );
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPaidBy(currentUserId);
+      setSelectedSplitIds(activeMembers.map((m) => m.id));
+    }
+  }, [isOpen, currentUserId, activeMembers]);
 
   if (!isOpen) return null;
 
@@ -44,7 +54,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     }
   };
 
-  const selectAll = () => setSelectedSplitIds(OOTY_MEMBERS.map((m) => m.id));
+  const selectAll = () => setSelectedSplitIds(activeMembers.map((m) => m.id));
   const deselectAll = () => setSelectedSplitIds([paidBy]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -186,7 +196,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 onChange={(e) => setPaidBy(e.target.value)}
                 className="w-full bg-retro-surface border-2 border-retro-border rounded-xl px-3 py-2.5 text-retro-text-primary text-sm font-medium focus:outline-none focus:border-retro-coral transition-colors cursor-pointer"
               >
-                {OOTY_MEMBERS.map((m) => (
+                {activeMembers.map((m) => (
                   <option key={m.id} value={m.id} className="bg-retro-surface">
                     {m.name} {m.id === currentUserId ? '(You)' : ''}
                   </option>
@@ -245,7 +255,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
             {/* 13 Members Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {OOTY_MEMBERS.map((m) => {
+              {activeMembers.map((m) => {
                 const isSelected = selectedSplitIds.includes(m.id);
                 return (
                   <button

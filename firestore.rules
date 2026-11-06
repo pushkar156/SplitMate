@@ -4,6 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Ooty Trip dedicated collections for the 13 travelers
+    match /ooty_members/{memberId} {
+      allow read, write: if true;
+    }
     match /ooty_expenses/{expenseId} {
       allow read, write: if true;
     }
