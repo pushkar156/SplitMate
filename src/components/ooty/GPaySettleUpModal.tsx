@@ -1,0 +1,209 @@
+import React, { useState, useEffect } from 'react';
+import { OotyMember, OOTY_MEMBERS } from '../../types/ooty';
+import { addOotySettlement } from '../../services/ootyDataService';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface GPaySettleUpModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  defaultFromId?: string;
+  defaultToId?: string;
+  defaultAmount?: number;
+  members?: OotyMember[];
+}
+
+export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
+  isOpen,
+  onClose,
+  defaultFromId,
+  defaultToId,
+  defaultAmount,
+  members = OOTY_MEMBERS,
+}) => {
+  const activeMembers = members.length > 0 ? members : OOTY_MEMBERS;
+  const [fromId, setFromId] = useState(defaultFromId || 'pushkar');
+  const [toId, setToId] = useState(defaultToId || 'jitendra');
+  const [amountStr, setAmountStr] = useState(defaultAmount ? defaultAmount.toString() : '');
+  const [note, setNote] = useState('UPI / GPay payment');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (defaultFromId) setFromId(defaultFromId);
+    if (defaultToId) setToId(defaultToId);
+    if (defaultAmount) setAmountStr(defaultAmount.toString());
+  }, [defaultFromId, defaultToId, defaultAmount, isOpen]);
+
+  if (!isOpen) return null;
+
+  const numAmount = parseFloat(amountStr) || 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (fromId === toId) {
+      toast.error('Payer and receiver cannot be the same person');
+      return;
+    }
+
+    if (numAmount <= 0) {
+      toast.error('Please enter a valid payment amount');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addOotySettlement({
+        fromMemberId: fromId,
+        toMemberId: toId,
+        amount: numAmount,
+        date: new Date().toISOString().split('T')[0],
+        note: note.trim() || 'Google Pay settlement',
+      });
+
+      const fromName = activeMembers.find((m) => m.id === fromId)?.name;
+      const toName = activeMembers.find((m) => m.id === toId)?.name;
+      toast.success(`Settled: ${fromName} paid ₹${numAmount} to ${toName}! 🤝`);
+
+      onClose();
+    } catch (err: any) {
+      toast.error('Failed to record settlement: ' + (err?.message || 'Error'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const fromMember = activeMembers.find((m) => m.id === fromId);
+  const toMember = activeMembers.find((m) => m.id === toId);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#000000] text-[#e3e3e3] flex flex-col justify-between overflow-hidden animate-in fade-in duration-200">
+      {/* 1. TOP APP BAR */}
+      <div className="flex items-center justify-between px-4 py-3 shrink-0">
+        <button
+          onClick={onClose}
+          className="p-2 -ml-2 rounded-full hover:bg-[#1f1f1f] text-[#c4c7c5] transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <span className="text-xs text-[#8e918f] font-medium tracking-wide">
+          Settle up payment
+        </span>
+        <div className="w-6" />
+      </div>
+
+      {/* 2. BODY CONTENT */}
+      <form onSubmit={handleSubmit} className="flex-1 flex flex-col justify-between p-6">
+        <div>
+          {/* User Transfer Bubbles */}
+          <div className="flex items-center justify-center gap-4 my-6">
+            {/* From User */}
+            <div className="flex flex-col items-center">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md mb-2"
+                style={{ backgroundColor: fromMember?.avatarColor || '#FF5B42' }}
+              >
+                {fromMember?.name.charAt(0)}
+              </div>
+              <span className="text-sm font-medium text-white">{fromMember?.name}</span>
+              <span className="text-[11px] text-[#8e918f]">Paying</span>
+            </div>
+
+            {/* Transfer Arrow */}
+            <div className="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333538] flex items-center justify-center text-[#a8c7fa]">
+              <ArrowRight className="w-5 h-5" />
+            </div>
+
+            {/* To User */}
+            <div className="flex flex-col items-center">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md mb-2"
+                style={{ backgroundColor: toMember?.avatarColor || '#802C62' }}
+              >
+                {toMember?.name.charAt(0)}
+              </div>
+              <span className="text-sm font-medium text-white">{toMember?.name}</span>
+              <span className="text-[11px] text-[#34a853]">Receiving</span>
+            </div>
+          </div>
+
+          {/* Amount Display / Input */}
+          <div className="flex items-center justify-center my-6">
+            <span className="text-4xl sm:text-5xl font-light text-[#c4c7c5] mr-2">₹</span>
+            <input
+              type="number"
+              autoFocus
+              value={amountStr}
+              onChange={(e) => setAmountStr(e.target.value)}
+              placeholder="0"
+              className="w-48 sm:w-64 bg-transparent text-5xl sm:text-6xl font-normal text-white focus:outline-none text-left tracking-tight border-none appearance-none"
+            />
+          </div>
+
+          {/* Switch Users Dropdown Row */}
+          <div className="bg-[#1e1f20] border border-[#282a2d] rounded-2xl p-4 space-y-3 max-w-md mx-auto">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#8e918f]">Who paid:</span>
+              <select
+                value={fromId}
+                onChange={(e) => setFromId(e.target.value)}
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+              >
+                {activeMembers.map((m) => (
+                  <option key={m.id} value={m.id} className="bg-[#1e1f20]">
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="border-t border-[#282a2d]" />
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#8e918f]">Paid to:</span>
+              <select
+                value={toId}
+                onChange={(e) => setToId(e.target.value)}
+                className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+              >
+                {activeMembers.map((m) => (
+                  <option key={m.id} value={m.id} className="bg-[#1e1f20]">
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="border-t border-[#282a2d]" />
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#8e918f]">Payment note:</span>
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="UPI, GPay, Cash"
+                className="bg-transparent text-white font-medium focus:outline-none text-right"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. BOTTOM STICKY BUTTON */}
+        <div className="pt-6 shrink-0">
+          <button
+            type="submit"
+            disabled={isSubmitting || numAmount <= 0}
+            className="w-full py-4 rounded-full bg-[#a8c7fa] hover:bg-[#b8d4ff] text-[#041e49] font-bold text-sm tracking-wide shadow-md transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <div className="w-5 h-5 border-2 border-[#041e49] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span>Record payment (₹{numAmount.toLocaleString('en-IN')})</span>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};

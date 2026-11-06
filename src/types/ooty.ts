@@ -84,6 +84,123 @@ export interface SimplifiedDebt {
   amount: number;
 }
 
+export interface PairwiseBalanceItem {
+  member: OotyMember;
+  amount: number;
+  unpaidExpenseCount: number;
+  totalExpenseCount: number;
+}
+
+export interface GPayUserBalanceSummary {
+  owedByYouTotal: number;
+  owedToYouTotal: number;
+  owedByYouList: PairwiseBalanceItem[];
+  owedToYouList: PairwiseBalanceItem[];
+  settledList: PairwiseBalanceItem[];
+}
+
+/**
+ * Calculates exact Google Pay pairwise balances for the current user
+ * (Matches Google Pay's "Owed by you", "X people owe you", and "Settled" view)
+ */
+export function calculateGPayBalancesForUser(
+  currentUserId: string,
+  expenses: OotyExpense[],
+  settlements: OotySettlement[] = [],
+  members: OotyMember[] = OOTY_MEMBERS
+): GPayUserBalanceSummary {
+  const otherMembers = members.filter((m) => m.id !== currentUserId);
+
+  const pairStats: Record<
+    string,
+    { net: number; unpaidCount: number; totalCount: number }
+  > = {};
+
+  for (const m of otherMembers) {
+    pairStats[m.id] = { net: 0, unpaidCount: 0, totalCount: 0 };
+  }
+
+  // 1. Process each expense
+  for (const exp of expenses) {
+    if (!exp.amount || exp.amount <= 0 || !exp.splitWith || exp.splitWith.length === 0) continue;
+    const splitCount = exp.splitWith.length;
+    const sharePerPerson = exp.amount / splitCount;
+
+    const youPaid = exp.paidBy === currentUserId;
+    const youParticipated = exp.splitWith.includes(currentUserId);
+
+    for (const m of otherMembers) {
+      const otherPaid = exp.paidBy === m.id;
+      const otherParticipated = exp.splitWith.includes(m.id);
+
+      if (youPaid && otherParticipated) {
+        // Other person owes you
+        pairStats[m.id].net += sharePerPerson;
+        pairStats[m.id].unpaidCount += 1;
+        pairStats[m.id].totalCount += 1;
+      } else if (otherPaid && youParticipated) {
+        // You owe other person
+        pairStats[m.id].net -= sharePerPerson;
+        pairStats[m.id].unpaidCount += 1;
+        pairStats[m.id].totalCount += 1;
+      } else if (otherParticipated || otherPaid) {
+        if (youParticipated || youPaid) {
+          pairStats[m.id].totalCount += 1;
+        }
+      }
+    }
+  }
+
+  // 2. Process settlements between you and others
+  for (const set of settlements) {
+    if (!set.amount || set.amount <= 0) continue;
+    if (set.fromMemberId === currentUserId && pairStats[set.toMemberId]) {
+      // You paid other person -> your debt decreases
+      pairStats[set.toMemberId].net += set.amount;
+    } else if (set.toMemberId === currentUserId && pairStats[set.fromMemberId]) {
+      // Other person paid you -> their debt decreases
+      pairStats[set.fromMemberId].net -= set.amount;
+    }
+  }
+
+  let owedByYouTotal = 0;
+  let owedToYouTotal = 0;
+  const owedByYouList: PairwiseBalanceItem[] = [];
+  const owedToYouList: PairwiseBalanceItem[] = [];
+  const settledList: PairwiseBalanceItem[] = [];
+
+  for (const m of otherMembers) {
+    const stats = pairStats[m.id];
+    const roundedNet = Math.round(stats.net * 100) / 100;
+
+    const item: PairwiseBalanceItem = {
+      member: m,
+      amount: Math.abs(roundedNet),
+      unpaidExpenseCount: stats.unpaidCount,
+      totalExpenseCount: stats.totalCount,
+    };
+
+    if (roundedNet < -0.5) {
+      owedByYouTotal += Math.abs(roundedNet);
+      owedByYouList.push(item);
+    } else if (roundedNet > 0.5) {
+      owedToYouTotal += roundedNet;
+      owedToYouList.push(item);
+    } else {
+      settledList.push({ ...item, amount: 0 });
+    }
+  }
+
+  return {
+    owedByYouTotal: Math.round(owedByYouTotal * 100) / 100,
+    owedToYouTotal: Math.round(owedToYouTotal * 100) / 100,
+    owedByYouList,
+    owedToYouList,
+    settledList,
+  };
+}
+
+
 /**
  * Calculates net balances for all 13 members across all expenses and settlements
  */

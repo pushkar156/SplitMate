@@ -3,6 +3,7 @@ import {
   OOTY_MEMBERS,
   OOTY_PASSWORD,
   calculateOotyBalances,
+  calculateGPayBalancesForUser,
   simplifyOotyDebts,
   OotyExpense,
   OotySettlement,
@@ -116,6 +117,42 @@ describe('Ooty Trip 13 Members & Engine', () => {
       expect(d.from).not.toBe(d.to);
       expect(d.amount).toBeGreaterThan(0);
     }
+  });
+
+  it('computes exact Google Pay dual balances for the user', () => {
+    // Pushkar paid 1,300 split among 13 members (100 each)
+    const allIds = OOTY_MEMBERS.map((m) => m.id);
+    const expenses: OotyExpense[] = [
+      {
+        id: 'exp-1',
+        title: 'Lunch',
+        amount: 1300,
+        category: 'Food & Drinks',
+        date: '2024-11-06',
+        paidBy: 'pushkar',
+        splitWith: allIds,
+        createdAt: '2024-11-06T12:00:00Z',
+      },
+    ];
+
+    // From Pushkar's perspective:
+    // Owed by you: 0
+    // Owed to you: 1,200 (12 members * 100)
+    const pushkarGPay = calculateGPayBalancesForUser('pushkar', expenses, []);
+    expect(pushkarGPay.owedByYouTotal).toBe(0);
+    expect(pushkarGPay.owedToYouTotal).toBe(1200);
+    expect(pushkarGPay.owedToYouList.length).toBe(12);
+    expect(pushkarGPay.owedByYouList.length).toBe(0);
+
+    // From Jitendra's perspective:
+    // Owed by you: 100 (to Pushkar)
+    // Owed to you: 0
+    const jitendraGPay = calculateGPayBalancesForUser('jitendra', expenses, []);
+    expect(jitendraGPay.owedByYouTotal).toBe(100);
+    expect(jitendraGPay.owedToYouTotal).toBe(0);
+    expect(jitendraGPay.owedByYouList.length).toBe(1);
+    expect(jitendraGPay.owedByYouList[0].member.id).toBe('pushkar');
+    expect(jitendraGPay.owedByYouList[0].amount).toBe(100);
   });
 });
 
