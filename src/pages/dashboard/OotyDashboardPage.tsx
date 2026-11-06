@@ -1362,10 +1362,12 @@ export const OotyDashboardPage: React.FC = () => {
       <GPaySettleUpModal
         isOpen={isSettleUpOpen}
         onClose={() => setIsSettleUpOpen(false)}
+        currentUserId={currentUserId}
         defaultFromId={settlePrefill.fromId}
         defaultToId={settlePrefill.toId}
         defaultAmount={settlePrefill.amount}
         members={members}
+        owedByYouList={gpayBalances.owedByYouList}
       />
 
       {/* 6. MANAGE / DELETE ALL SPLITS MODAL */}
