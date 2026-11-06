@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -6,6 +6,7 @@ import {
   OotySettlement,
   OotyMember,
   OOTY_MEMBERS,
+  OotyChatMessage,
   calculateGPayBalancesForUser,
   calculateOotyBalances,
   simplifyOotyDebts,
@@ -13,6 +14,7 @@ import {
 import {
   subscribeToOotyData,
   deleteOotyExpense,
+  sendOotyChatMessage,
   SyncStatus,
 } from '../../services/ootyDataService';
 import { GPaySplitExpenseModal } from '../../components/ooty/GPaySplitExpenseModal';
@@ -26,8 +28,36 @@ import {
   Trash2,
   Receipt,
   Smartphone,
+  Clock,
+  ChevronRight,
+  Send,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Helper to format dates like Google Pay (e.g. "28 Oct")
+function formatGPayDate(isoString?: string): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch {
+    return isoString;
+  }
+}
+
+// Helper to format message time (e.g. "11:45 PM")
+function formatGPayTime(isoString?: string): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  } catch {
+    return '';
+  }
+}
 
 export const OotyDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,10 +66,12 @@ export const OotyDashboardPage: React.FC = () => {
   const [expenses, setExpenses] = useState<OotyExpense[]>([]);
   const [settlements, setSettlements] = useState<OotySettlement[]>([]);
   const [members, setMembers] = useState<OotyMember[]>(OOTY_MEMBERS);
+  const [messages, setMessages] = useState<OotyChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState<string>('');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ isConnected: true, isSyncing: false });
 
-  // Top Tabs: 'expenses' (Balances overview like GPay) | 'activity' (Expenses feed) | 'all_members'
-  const [topTab, setTopTab] = useState<'expenses' | 'activity' | 'all_members'>('expenses');
+  // Top Tabs: 'chat' (Google Pay Conversation Stream) | 'expenses' (Balances overview) | 'all_members'
+  const [topTab, setTopTab] = useState<'chat' | 'expenses' | 'all_members'>('chat');
 
   // Modals state
   const [isSplitExpenseOpen, setIsSplitExpenseOpen] = useState(false);
@@ -53,6 +85,7 @@ export const OotyDashboardPage: React.FC = () => {
   // Menu Dropdown & PWA Install
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -78,15 +111,18 @@ export const OotyDashboardPage: React.FC = () => {
     setIsMenuOpen(false);
   };
 
-  // Subscribe to real-time Ooty data
+  // Subscribe to real-time Ooty data (Live Firestore)
   useEffect(() => {
-    const unsubscribe = subscribeToOotyData((newExpenses, newSettlements, newMembers, newSyncStatus) => {
+    const unsubscribe = subscribeToOotyData((newExpenses, newSettlements, newMembers, newSyncStatus, newMessages) => {
       setExpenses(newExpenses);
       setSettlements(newSettlements);
       if (newMembers && newMembers.length > 0) {
         setMembers(newMembers);
       }
       setSyncStatus(newSyncStatus);
+      if (newMessages) {
+        setMessages(newMessages);
+      }
     });
 
     return () => unsubscribe();
@@ -113,6 +149,43 @@ export const OotyDashboardPage: React.FC = () => {
     return expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
   }, [expenses]);
 
+  // Unified Google Pay Chat Stream Timeline (Expenses, Settlements, and Messages)
+  const timelineItems = useMemo(() => {
+    const items: Array<{
+      id: string;
+      type: 'expense' | 'settlement' | 'message';
+      time: number;
+      expense?: OotyExpense;
+      settlement?: OotySettlement;
+      message?: OotyChatMessage;
+    }> = [];
+
+    expenses.forEach((e) => {
+      const ts = new Date(e.createdAt || e.date).getTime() || 0;
+      items.push({ id: 'exp_' + e.id, type: 'expense', time: ts, expense: e });
+    });
+
+    settlements.forEach((s) => {
+      const ts = new Date(s.createdAt || s.date).getTime() || 0;
+      items.push({ id: 'set_' + s.id, type: 'settlement', time: ts, settlement: s });
+    });
+
+    messages.forEach((m) => {
+      const ts = new Date(m.createdAt).getTime() || 0;
+      items.push({ id: 'msg_' + m.id, type: 'message', time: ts, message: m });
+    });
+
+    items.sort((a, b) => a.time - b.time);
+    return items;
+  }, [expenses, settlements, messages]);
+
+  // Auto-scroll chat to bottom on updates
+  useEffect(() => {
+    if (topTab === 'chat') {
+      chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [timelineItems, topTab]);
+
   const handleLogout = () => {
     if (window.confirm('Do you want to log out of this device?')) {
       logout();
@@ -129,6 +202,18 @@ export const OotyDashboardPage: React.FC = () => {
       } catch (err: any) {
         toast.error('Could not delete expense: ' + (err.message || 'Error'));
       }
+    }
+  };
+
+  // Send message in Chat
+  const handleSendMessage = async () => {
+    if (!chatInput.trim()) return;
+    const text = chatInput.trim();
+    setChatInput('');
+    try {
+      await sendOotyChatMessage(currentUserId, text);
+    } catch (err: any) {
+      toast.error('Failed to send message: ' + (err?.message || 'Error'));
     }
   };
 
@@ -182,11 +267,49 @@ export const OotyDashboardPage: React.FC = () => {
     setIsMenuOpen(false);
   };
 
+  // Helper to calculate payment progress for an expense card
+  const getExpenseProgress = (exp: OotyExpense) => {
+    const totalInvolved = exp.splitWith.length || 1;
+    const sharePerPerson = exp.amount / totalInvolved;
+    const isPayer = exp.paidBy === currentUserId;
+    const userInvolved = exp.splitWith.includes(currentUserId);
+    const userShare = userInvolved ? sharePerPerson : 0;
+
+    // Count paid participants: payer is always 1
+    let paidCount = 1;
+    exp.splitWith.forEach((mId) => {
+      if (mId === exp.paidBy) return;
+      const hasSettled = settlements.some(
+        (s) => s.fromMemberId === mId && s.toMemberId === exp.paidBy && s.amount >= sharePerPerson * 0.95
+      );
+      if (hasSettled) paidCount++;
+    });
+
+    const isUserPaid = isPayer || !userInvolved || settlements.some(
+      (s) => s.fromMemberId === currentUserId && s.toMemberId === exp.paidBy && s.amount >= userShare * 0.95
+    );
+
+    const remainingAmount = Math.max(0, exp.amount - sharePerPerson * paidCount);
+    const progressPercent = Math.min(100, Math.round((paidCount / totalInvolved) * 100));
+
+    return {
+      totalInvolved,
+      sharePerPerson,
+      isPayer,
+      userInvolved,
+      userShare,
+      paidCount,
+      isUserPaid,
+      remainingAmount,
+      progressPercent,
+    };
+  };
+
   return (
-    <div className="min-h-screen bg-[#000000] text-[#e3e3e3] flex flex-col font-sans select-none pb-28">
+    <div className="min-h-screen bg-[#000000] text-[#e3e3e3] flex flex-col font-sans select-none">
       {/* 1. TOP APP BAR (Exact Google Pay Group Header) */}
-      <header className="sticky top-0 z-40 bg-[#000000]/95 backdrop-blur-md px-4 pt-3 pb-2 border-b border-[#1e1f20]">
-        <div className="flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-[#000000]/95 backdrop-blur-md px-4 pt-3 pb-0 border-b border-[#1e1f20]">
+        <div className="flex items-center justify-between pb-2">
           {/* Left: Back & Group Title with Avatar cluster */}
           <div className="flex items-center gap-3">
             <button
@@ -286,11 +409,23 @@ export const OotyDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* TOP TABS: "Expenses" (Active) | "Activity" | "All 13" */}
-        <div className="flex items-center justify-around mt-3 border-t border-[#1e1f20] pt-1">
+        {/* TOP TABS: "Chat" (Default like Google Pay) | "Expenses" | "All 13" */}
+        <div className="flex items-center justify-around border-t border-[#1e1f20]">
+          <button
+            onClick={() => setTopTab('chat')}
+            className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
+              topTab === 'chat' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
+            }`}
+          >
+            Chat
+            {topTab === 'chat' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#a8c7fa] rounded-full" />
+            )}
+          </button>
+
           <button
             onClick={() => setTopTab('expenses')}
-            className={`py-2 px-6 text-sm font-medium transition-colors relative ${
+            className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
               topTab === 'expenses' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
             }`}
           >
@@ -301,20 +436,8 @@ export const OotyDashboardPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setTopTab('activity')}
-            className={`py-2 px-6 text-sm font-medium transition-colors relative ${
-              topTab === 'activity' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
-            }`}
-          >
-            All Activity ({expenses.length})
-            {topTab === 'activity' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#a8c7fa] rounded-full" />
-            )}
-          </button>
-
-          <button
             onClick={() => setTopTab('all_members')}
-            className={`py-2 px-6 text-sm font-medium transition-colors relative ${
+            className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
               topTab === 'all_members' ? 'text-white' : 'text-[#8e918f] hover:text-[#c4c7c5]'
             }`}
           >
@@ -327,8 +450,254 @@ export const OotyDashboardPage: React.FC = () => {
       </header>
 
       {/* 2. MAIN CONTENT AREA */}
-      <main className="flex-1 max-w-xl mx-auto w-full px-4 pt-4">
-        {/* TAB 1: GOOGLE PAY EXPENSES DASHBOARD (Matches Screenshot 1) */}
+      <main className={`flex-1 max-w-xl mx-auto w-full px-4 pt-3 ${topTab === 'chat' ? 'pb-24' : 'pb-28'}`}>
+        {/* ========================================================================= */}
+        {/* TAB 1: GOOGLE PAY GROUP CHAT STREAM (Exact Screenshot: Requested for...) */}
+        {/* ========================================================================= */}
+        {topTab === 'chat' && (
+          <div className="space-y-3.5 animate-in fade-in duration-150">
+            {timelineItems.length === 0 ? (
+              <div className="p-12 text-center text-[#8e918f]">
+                <Receipt className="w-12 h-12 mx-auto text-[#333538] mb-3" />
+                <p className="text-sm">No expenses or chat messages yet.</p>
+                <p className="text-xs text-[#5e6368] mt-1">Tap "Split expense" below to start the Ooty group trip!</p>
+              </div>
+            ) : (
+              timelineItems.map((item) => {
+                // A. SPLIT EXPENSE CARD
+                if (item.type === 'expense' && item.expense) {
+                  const exp = item.expense;
+                  const prog = getExpenseProgress(exp);
+                  const isSentByYou = exp.paidBy === currentUserId;
+                  const payerMember = members.find((m) => m.id === exp.paidBy);
+
+                  // CASE 1: Sent by You (Pushkar) -> Right aligned dark card
+                  if (isSentByYou) {
+                    return (
+                      <div key={item.id} className="flex flex-col items-end my-2.5">
+                        <div className="bg-[#282a2d] text-[#e3e3e3] rounded-2xl p-4 w-72 sm:w-80 shadow-md border border-[#333538]/40">
+                          <div className="text-xs text-[#c4c7c5] font-normal">
+                            Requested for '{exp.title}'
+                          </div>
+                          <div className="text-3xl font-medium tracking-tight text-white my-1 font-sans">
+                            ₹{Math.round(exp.amount).toLocaleString('en-IN')}
+                          </div>
+
+                          {/* Member Avatars */}
+                          <div className="flex items-center -space-x-1.5 my-2">
+                            {exp.splitWith.slice(0, 5).map((mId) => {
+                              const m = members.find((x) => x.id === mId);
+                              return (
+                                <div
+                                  key={mId}
+                                  className="w-5 h-5 rounded-full border border-[#282a2d] flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
+                                  style={{ backgroundColor: m?.avatarColor || '#FF5B42' }}
+                                  title={m?.name || mId}
+                                >
+                                  {m?.name?.charAt(0) || mId.charAt(0).toUpperCase()}
+                                </div>
+                              );
+                            })}
+                            {exp.splitWith.length > 5 && (
+                              <span className="text-[10px] text-[#8e918f] pl-2 font-mono">
+                                +{exp.splitWith.length - 5}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Blue Progress Bar */}
+                          <div className="flex items-center gap-2 my-1.5">
+                            <div className="h-1 rounded-full bg-[#1e1f20] flex-1 overflow-hidden">
+                              <div
+                                className="h-full bg-[#1a73e8] rounded-full transition-all"
+                                style={{ width: `${Math.max(8, prog.progressPercent)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-[#c4c7c5] shrink-0 font-medium">
+                              {prog.remainingAmount > 0
+                                ? `₹${Math.round(prog.remainingAmount).toLocaleString('en-IN')} left`
+                                : 'All paid'}
+                            </span>
+                          </div>
+
+                          {/* Bottom Row: Clock + Status + Chevron + Delete */}
+                          <div className="flex items-center justify-between text-xs text-[#8e918f] pt-1.5 border-t border-[#383a3d]/60 mt-2">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-[#8e918f]" />
+                              <span>
+                                {prog.paidCount} of {prog.totalInvolved} paid • {formatGPayDate(exp.createdAt || exp.date)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleDeleteExpense(exp.id, exp.title)}
+                                className="p-1 hover:text-[#ff727a] text-[#8e918f] transition-colors"
+                                title="Delete split"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                              <ChevronRight className="w-4 h-4 text-[#8e918f]" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // CASE 2: Sent by Someone Else -> Left aligned card with sender name & avatar & Pay button
+                  return (
+                    <div key={item.id} className="flex flex-col items-start my-2.5">
+                      {/* Sender Avatar & Name */}
+                      <div className="flex items-center gap-2 mb-1.5 pl-1">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                          style={{ backgroundColor: payerMember?.avatarColor || '#802C62' }}
+                        >
+                          {payerMember?.name.charAt(0)}
+                        </div>
+                        <span className="text-xs text-[#c4c7c5] font-medium">{payerMember?.name}</span>
+                      </div>
+
+                      {/* Card */}
+                      <div className="bg-[#282a2d] text-[#e3e3e3] rounded-2xl p-4 w-72 sm:w-80 shadow-md border border-[#333538]/40">
+                        <div className="text-xs text-[#c4c7c5] font-normal">
+                          Split request • {exp.title}
+                        </div>
+                        <div className="text-3xl font-medium tracking-tight text-white my-1 font-sans">
+                          ₹{Math.round(prog.userShare > 0 ? prog.userShare : exp.amount).toLocaleString('en-IN')}
+                        </div>
+
+                        {/* Avatars */}
+                        <div className="flex items-center -space-x-1.5 my-2">
+                          {exp.splitWith.slice(0, 5).map((mId) => {
+                            const m = members.find((x) => x.id === mId);
+                            return (
+                              <div
+                                key={mId}
+                                className="w-5 h-5 rounded-full border border-[#282a2d] flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
+                                style={{ backgroundColor: m?.avatarColor || '#FF5B42' }}
+                                title={m?.name || mId}
+                              >
+                                {m?.name?.charAt(0) || mId.charAt(0).toUpperCase()}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Blue Progress Bar */}
+                        <div className="flex items-center gap-2 my-1.5">
+                          <div className="h-1 rounded-full bg-[#1e1f20] flex-1 overflow-hidden">
+                            <div
+                              className="h-full bg-[#1a73e8] rounded-full transition-all"
+                              style={{ width: `${Math.max(8, prog.progressPercent)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-[#8e918f] shrink-0 font-medium">
+                            {prog.paidCount}/{prog.totalInvolved} paid
+                          </span>
+                        </div>
+
+                        {/* Bottom Row */}
+                        <div className="flex items-center justify-between text-xs text-[#8e918f] pt-1.5 border-t border-[#383a3d]/60 mt-2">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-[#8e918f]" />
+                            <span>
+                              {prog.isUserPaid ? 'Paid' : 'Unpaid'} • {formatGPayDate(exp.createdAt || exp.date)}
+                            </span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-[#8e918f]" />
+                        </div>
+
+                        {/* BIG GOOGLE PAY BLUE PAY BUTTON */}
+                        {prog.userShare > 0 && !prog.isUserPaid && (
+                          <button
+                            onClick={() => {
+                              setSettlePrefill({
+                                fromId: currentUserId,
+                                toId: exp.paidBy,
+                                amount: Math.round(prog.userShare),
+                              });
+                              setIsSettleUpOpen(true);
+                            }}
+                            className="w-full mt-3.5 py-2.5 rounded-full bg-[#0b57d0] hover:bg-[#1a73e8] text-white font-medium text-sm transition-colors text-center active:scale-[0.98] shadow-sm"
+                          >
+                            Pay ₹{Math.round(prog.userShare).toLocaleString('en-IN')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // B. SETTLEMENT PAYMENT PILL IN CHAT
+                if (item.type === 'settlement' && item.settlement) {
+                  const set = item.settlement;
+                  const fromName = members.find((m) => m.id === set.fromMemberId)?.name || set.fromMemberId;
+                  const toName = members.find((m) => m.id === set.toMemberId)?.name || set.toMemberId;
+
+                  return (
+                    <div key={item.id} className="flex justify-center my-3">
+                      <div className="px-4 py-2 bg-[#1e1f20] border border-[#282a2d] rounded-full flex items-center gap-2 text-xs text-[#c4c7c5] shadow-sm">
+                        <CheckCircle2 className="w-4 h-4 text-[#34a853] shrink-0" />
+                        <span>
+                          <strong className="text-white font-medium">{fromName}</strong> paid ₹{Math.round(set.amount).toLocaleString('en-IN')} to <strong className="text-white font-medium">{toName}</strong>
+                        </span>
+                        <span className="text-[#8e918f] text-[11px]">• {formatGPayDate(set.createdAt || set.date)}</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // C. TEXT MESSAGE IN CHAT
+                if (item.type === 'message' && item.message) {
+                  const msg = item.message;
+                  const isYou = msg.senderId === currentUserId;
+                  const sender = members.find((m) => m.id === msg.senderId);
+
+                  if (isYou) {
+                    return (
+                      <div key={item.id} className="flex flex-col items-end my-1.5">
+                        <div className="bg-[#004a77] text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[80%] text-sm shadow-sm break-words">
+                          {msg.text}
+                        </div>
+                        <span className="text-[10px] text-[#8e918f] mt-0.5 pr-1">
+                          {formatGPayTime(msg.createdAt)}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={item.id} className="flex items-start gap-2 my-1.5">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 shadow-sm"
+                        style={{ backgroundColor: sender?.avatarColor || '#802C62' }}
+                      >
+                        {sender?.name.charAt(0)}
+                      </div>
+                      <div className="flex flex-col items-start max-w-[80%]">
+                        <span className="text-[11px] text-[#8e918f] ml-1 mb-0.5">{sender?.name}</span>
+                        <div className="bg-[#282a2d] text-[#e3e3e3] rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm shadow-sm break-words">
+                          {msg.text}
+                        </div>
+                        <span className="text-[10px] text-[#8e918f] mt-0.5 pl-1">
+                          {formatGPayTime(msg.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })
+            )}
+            <div ref={chatScrollRef} />
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: GOOGLE PAY EXPENSES BALANCES OVERVIEW (Matches First Screenshot)   */}
+        {/* ========================================================================= */}
         {topTab === 'expenses' && (
           <div className="space-y-6 animate-in fade-in duration-150">
             {/* DUAL BALANCE CARD (Exact Image 1) */}
@@ -370,15 +739,15 @@ export const OotyDashboardPage: React.FC = () => {
                         setSettlePrefill({
                           fromId: currentUserId,
                           toId: item.member.id,
-                          amount: item.amount,
+                          amount: Math.round(item.amount),
                         });
                         setIsSettleUpOpen(true);
                       }}
-                      className="py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer group hover:bg-[#121316] rounded-xl transition-colors"
+                      className="py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#1e1f20]/50 rounded-xl transition-colors"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
                           style={{ backgroundColor: item.member.avatarColor }}
                         >
                           {item.member.name.charAt(0)}
@@ -388,12 +757,12 @@ export const OotyDashboardPage: React.FC = () => {
                             {item.member.name}
                           </div>
                           <div className="text-xs text-[#8e918f]">
-                            {item.unpaidExpenseCount} unpaid {item.unpaidExpenseCount === 1 ? 'expense' : 'expenses'}
+                            {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-right font-medium text-sm text-white shrink-0">
+                      <div className="text-right font-medium text-sm text-white shrink-0 font-sans">
                         ₹{item.amount.toFixed(2)}
                       </div>
                     </div>
@@ -402,12 +771,11 @@ export const OotyDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {/* SECTION 2: "X person(s) owes you" (Image 1) */}
+            {/* SECTION 2: "1 person owes you" (Image 1) */}
             {gpayBalances.owedToYouList.length > 0 && (
               <div>
                 <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
-                  {gpayBalances.owedToYouList.length}{' '}
-                  {gpayBalances.owedToYouList.length === 1 ? 'person owes you' : 'people owe you'}
+                  {gpayBalances.owedToYouList.length} {gpayBalances.owedToYouList.length === 1 ? 'person owes' : 'people owe'} you
                 </h2>
                 <div className="divide-y divide-[#1e1f20]">
                   {gpayBalances.owedToYouList.map((item) => (
@@ -417,15 +785,15 @@ export const OotyDashboardPage: React.FC = () => {
                         setSettlePrefill({
                           fromId: item.member.id,
                           toId: currentUserId,
-                          amount: item.amount,
+                          amount: Math.round(item.amount),
                         });
                         setIsSettleUpOpen(true);
                       }}
-                      className="py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer group hover:bg-[#121316] rounded-xl transition-colors"
+                      className="py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer hover:bg-[#1e1f20]/50 rounded-xl transition-colors"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
                           style={{ backgroundColor: item.member.avatarColor }}
                         >
                           {item.member.name.charAt(0)}
@@ -435,12 +803,12 @@ export const OotyDashboardPage: React.FC = () => {
                             {item.member.name}
                           </div>
                           <div className="text-xs text-[#8e918f]">
-                            {item.unpaidExpenseCount} unpaid {item.unpaidExpenseCount === 1 ? 'expense' : 'expenses'}
+                            {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-right font-medium text-sm text-[#34a853] shrink-0">
+                      <div className="text-right font-medium text-sm text-[#34a853] shrink-0 font-sans">
                         ₹{item.amount.toFixed(2)}
                       </div>
                     </div>
@@ -462,7 +830,7 @@ export const OotyDashboardPage: React.FC = () => {
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 opacity-80"
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 opacity-80 shadow-sm"
                         style={{ backgroundColor: item.member.avatarColor }}
                       >
                         {item.member.name.charAt(0)}
@@ -477,7 +845,7 @@ export const OotyDashboardPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="text-right font-medium text-sm text-[#8e918f] shrink-0">
+                    <div className="text-right font-medium text-sm text-[#8e918f] shrink-0 font-sans">
                       ₹0.00
                     </div>
                   </div>
@@ -487,120 +855,69 @@ export const OotyDashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: ALL ACTIVITY (Expenses Stream) */}
-        {topTab === 'activity' && (
-          <div className="space-y-3 animate-in fade-in duration-150">
-            {expenses.length === 0 ? (
-              <div className="p-12 text-center text-[#8e918f]">
-                <Receipt className="w-12 h-12 mx-auto text-[#333538] mb-3" />
-                <p className="text-sm">No expenses recorded yet.</p>
-                <button
-                  onClick={() => setIsSplitExpenseOpen(true)}
-                  className="mt-4 px-5 py-2.5 rounded-full bg-[#1e1f20] hover:bg-[#282a2d] text-white text-xs font-medium"
-                >
-                  + Split first expense
-                </button>
-              </div>
-            ) : (
-              expenses.map((exp) => {
-                const payer = members.find((m) => m.id === exp.paidBy);
-                const isYou = exp.paidBy === currentUserId;
-                const userInvolved = exp.splitWith.includes(currentUserId);
-                const userShare = userInvolved ? exp.amount / exp.splitWith.length : 0;
-
-                return (
-                  <div
-                    key={exp.id}
-                    className="p-4 rounded-2xl bg-[#1e1f20] border border-[#2a2b2e] flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-[#2a2b2e] flex items-center justify-center text-[#a8c7fa] shrink-0">
-                        <Receipt className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-white truncate">
-                          {exp.title}
-                        </div>
-                        <div className="text-xs text-[#8e918f] mt-0.5">
-                          {isYou ? 'You paid' : `${payer?.name} paid`} • {exp.date}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-white">
-                          ₹{exp.amount.toFixed(2)}
-                        </div>
-                        <div className="text-[11px] text-[#8e918f]">
-                          {isYou ? (
-                            <span className="text-[#34a853]">You lent ₹{(exp.amount - userShare).toFixed(2)}</span>
-                          ) : userInvolved ? (
-                            <span className="text-[#ea4335]">Your share ₹{userShare.toFixed(2)}</span>
-                          ) : (
-                            'Not involved'
-                          )}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handleDeleteExpense(exp.id, exp.title)}
-                        className="p-1.5 text-[#8e918f] hover:text-[#ea4335] transition-colors"
-                        title="Delete expense"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-
-        {/* TAB 3: ALL 13 MEMBERS & SIMPLIFIED DEBTS */}
+        {/* ========================================================================= */}
+        {/* TAB 3: ALL 13 MEMBERS BREAKDOWN & TRIP TOTALS                              */}
+        {/* ========================================================================= */}
         {topTab === 'all_members' && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            {/* Total trip spend banner */}
-            <div className="p-4 rounded-2xl bg-[#1e1f20] border border-[#2a2b2e] flex items-center justify-between">
-              <div>
-                <div className="text-xs text-[#8e918f]">Total Ooty Trip Spend</div>
-                <div className="text-xl font-bold text-white mt-0.5">
-                  ₹{totalTripSpending.toLocaleString('en-IN')}
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* Trip Spend Summary Card */}
+            <div className="p-5 rounded-3xl bg-[#1e1f20] border border-[#282a2d] shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-[#8e918f]">Total Ooty Trip Cost</div>
+                  <div className="text-3xl font-medium tracking-tight text-white mt-1 font-sans">
+                    ₹{totalTripSpending.toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-[#8e918f]">Per Person (13)</div>
+                  <div className="text-lg font-medium text-[#a8c7fa] mt-1 font-sans">
+                    ₹{(totalTripSpending / 13).toFixed(2)}
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={copyWhatsAppSummary}
-                className="px-3.5 py-1.5 rounded-full bg-[#2a2b2e] hover:bg-[#333538] text-xs text-[#a8c7fa] font-medium flex items-center gap-1.5"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Share Summary</span>
-              </button>
             </div>
 
-            {/* Simplified settlements */}
+            {/* Simplified Settlements */}
             <div>
-              <h3 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
-                Simplified Settlements ({simplifiedDebts.length})
-              </h3>
+              <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+                Direct Settlements Plan ({simplifiedDebts.length})
+              </h2>
               {simplifiedDebts.length === 0 ? (
-                <div className="p-6 rounded-2xl bg-[#1e1f20] text-center text-xs text-[#8e918f]">
-                  Everyone in Ooty is settled up!
+                <div className="p-6 rounded-2xl bg-[#1e1f20] border border-[#282a2d] text-center text-sm text-[#34a853]">
+                  ✨ Everyone is all settled up! Zero debts remaining.
                 </div>
               ) : (
                 <div className="space-y-2">
                   {simplifiedDebts.map((debt, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-2xl bg-[#1e1f20] border border-[#2a2b2e] flex items-center justify-between gap-3 text-xs"
+                      className="p-3.5 rounded-2xl bg-[#1e1f20] border border-[#282a2d] flex items-center justify-between text-xs"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">{debt.fromName}</span>
-                        <span className="text-[#8e918f]">pays</span>
-                        <span className="font-semibold text-white">{debt.toName}</span>
+                        <span className="font-medium text-white">{debt.fromName}</span>
+                        <span className="text-[#8e918f]">owes</span>
+                        <span className="font-medium text-[#a8c7fa]">{debt.toName}</span>
                       </div>
-                      <div className="font-mono font-bold text-[#a8c7fa]">
-                        ₹{debt.amount.toLocaleString('en-IN')}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-medium text-white">
+                          ₹{debt.amount.toLocaleString('en-IN')}
+                        </span>
+                        {(debt.from === currentUserId || debt.to === currentUserId) && (
+                          <button
+                            onClick={() => {
+                              setSettlePrefill({
+                                fromId: debt.from,
+                                toId: debt.to,
+                                amount: debt.amount,
+                              });
+                              setIsSettleUpOpen(true);
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-[#a8c7fa] text-[#041e49] font-medium text-[11px]"
+                          >
+                            Settle
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -608,73 +925,109 @@ export const OotyDashboardPage: React.FC = () => {
               )}
             </div>
 
-            {/* 13 Members Table */}
+            {/* All 13 Individual Net Positions */}
             <div>
-              <h3 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
-                13 Travelers Balances
-              </h3>
-              <div className="rounded-2xl bg-[#1e1f20] border border-[#2a2b2e] overflow-hidden">
-                <div className="divide-y divide-[#282a2d]">
-                  {members.map((m) => {
-                    const b = groupBalances[m.id];
-                    const net = b ? b.netBalance : 0;
-                    return (
-                      <div key={m.id} className="p-3 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-[10px]"
-                            style={{ backgroundColor: m.avatarColor }}
-                          >
-                            {m.name.charAt(0)}
-                          </div>
-                          <span className="font-medium text-white">
-                            {m.name} {m.id === currentUserId ? '(You)' : ''}
-                          </span>
-                        </div>
+              <h2 className="text-xs font-semibold text-[#8e918f] px-1 mb-2">
+                All 13 Travelers Net Position
+              </h2>
+              <div className="divide-y divide-[#1e1f20] bg-[#1e1f20] border border-[#282a2d] rounded-2xl overflow-hidden px-3">
+                {members.map((m) => {
+                  const net = groupBalances[m.id]?.netBalance || 0;
+                  return (
+                    <div key={m.id} className="py-3 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2.5">
                         <div
-                          className={`font-mono font-medium ${
-                            net > 0.5
-                              ? 'text-[#34a853]'
-                              : net < -0.5
-                              ? 'text-[#ea4335]'
-                              : 'text-[#8e918f]'
-                          }`}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm"
+                          style={{ backgroundColor: m.avatarColor }}
                         >
-                          {net > 0.5 ? `+₹${net.toFixed(2)}` : net < -0.5 ? `-₹${Math.abs(net).toFixed(2)}` : '₹0.00'}
+                          {m.name.charAt(0)}
                         </div>
+                        <span className="font-medium text-white">
+                          {m.name} {m.id === currentUserId ? '(You)' : ''}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div
+                        className={`font-mono font-medium ${
+                          net > 0.5
+                            ? 'text-[#34a853]'
+                            : net < -0.5
+                            ? 'text-[#ea4335]'
+                            : 'text-[#8e918f]'
+                        }`}
+                      >
+                        {net > 0.5 ? `+₹${net.toFixed(2)}` : net < -0.5 ? `-₹${Math.abs(net).toFixed(2)}` : '₹0.00'}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* 3. FLOATING BOTTOM ACTION BAR (Exact Google Pay Pill Buttons from Image 1) */}
-      <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center px-4 pointer-events-none">
-        <div className="flex items-center gap-3 bg-[#000000]/90 backdrop-blur-lg p-1.5 rounded-full border border-[#282a2d] shadow-2xl pointer-events-auto">
+      {/* ========================================================================= */}
+      {/* 3. BOTTOM BAR (Exact Google Pay UI for Chat vs Expenses)                  */}
+      {/* ========================================================================= */}
+      {topTab === 'chat' ? (
+        // EXACT CHAT BOTTOM BAR (Image 5: Split expense pill + Message... capsule)
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#000000]/95 backdrop-blur-md border-t border-[#1e1f20] px-3 py-2.5 max-w-xl mx-auto flex items-center gap-2">
           {/* Split expense pill */}
           <button
             onClick={() => setIsSplitExpenseOpen(true)}
-            className="px-6 py-2.5 rounded-full border border-[#5e6368] hover:border-[#8e918f] text-white font-medium text-sm transition-colors active:scale-95"
+            className="px-4 py-2.5 rounded-full border border-[#5e6368] hover:border-white text-white font-medium text-xs sm:text-sm shrink-0 active:scale-95 transition-colors"
           >
             Split expense
           </button>
 
-          {/* Settle up pill */}
-          <button
-            onClick={() => {
-              setSettlePrefill({});
-              setIsSettleUpOpen(true);
+          {/* Message... input capsule */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendMessage();
             }}
-            className="px-6 py-2.5 rounded-full bg-[#a8c7fa] hover:bg-[#b8d4ff] text-[#041e49] font-medium text-sm transition-colors active:scale-95 shadow-sm"
+            className="flex-1 flex items-center bg-[#1e1f20] border border-[#333538] focus-within:border-[#a8c7fa] rounded-full px-4 py-1.5 transition-colors"
           >
-            Settle up
-          </button>
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Message..."
+              className="bg-transparent text-sm text-white placeholder-[#8e918f] focus:outline-none flex-1 py-1"
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim()}
+              className="p-1.5 text-[#a8c7fa] disabled:text-[#5e6368] hover:text-white transition-colors"
+              title="Send message"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
         </div>
-      </div>
+      ) : (
+        // EXPENSES FLOATING PILLS (Image 1: Split expense + Settle up)
+        <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center px-4 pointer-events-none">
+          <div className="flex items-center gap-3 bg-[#000000]/90 backdrop-blur-lg p-1.5 rounded-full border border-[#282a2d] shadow-2xl pointer-events-auto">
+            <button
+              onClick={() => setIsSplitExpenseOpen(true)}
+              className="px-6 py-2.5 rounded-full border border-[#5e6368] hover:border-[#8e918f] text-white font-medium text-sm transition-colors active:scale-95"
+            >
+              Split expense
+            </button>
+
+            <button
+              onClick={() => {
+                setSettlePrefill({});
+                setIsSettleUpOpen(true);
+              }}
+              className="px-6 py-2.5 rounded-full bg-[#a8c7fa] hover:bg-[#b8d4ff] text-[#041e49] font-medium text-sm transition-colors active:scale-95 shadow-sm"
+            >
+              Settle up
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 4. GOOGLE PAY SPLIT EXPENSE SCREEN MODAL (Exact Images 2, 3, 4) */}
       <GPaySplitExpenseModal

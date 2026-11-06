@@ -7,11 +7,12 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { OotyExpense, OotySettlement, OotyMember, OOTY_MEMBERS } from '../types/ooty';
+import { OotyExpense, OotySettlement, OotyMember, OOTY_MEMBERS, OotyChatMessage } from '../types/ooty';
 
 const LOCAL_EXPENSES_KEY = 'splitmate_ooty_expenses_v3';
 const LOCAL_SETTLEMENTS_KEY = 'splitmate_ooty_settlements_v3';
 const LOCAL_MEMBERS_KEY = 'splitmate_ooty_members_v3';
+const LOCAL_MESSAGES_KEY = 'splitmate_ooty_messages_v3';
 
 // Initial seed expenses for Ooty trip
 const DEFAULT_INITIAL_EXPENSES: OotyExpense[] = [
@@ -59,7 +60,8 @@ type OotyDataListener = (
   expenses: OotyExpense[],
   settlements: OotySettlement[],
   members: OotyMember[],
-  status: SyncStatus
+  status: SyncStatus,
+  messages?: OotyChatMessage[]
 ) => void;
 
 // Active in-memory subscribers (components currently rendered on screen)
@@ -69,6 +71,7 @@ const activeListeners = new Set<OotyDataListener>();
 let latestExpenses: OotyExpense[] = getStoredLocalExpenses();
 let latestSettlements: OotySettlement[] = getStoredLocalSettlements();
 let latestMembers: OotyMember[] = getStoredLocalMembers();
+let latestMessages: OotyChatMessage[] = getStoredLocalMessages();
 let currentSyncStatus: SyncStatus = {
   isConnected: Boolean(db),
   isSyncing: false,
@@ -77,7 +80,13 @@ let currentSyncStatus: SyncStatus = {
 function broadcastUpdate() {
   activeListeners.forEach((listener) => {
     try {
-      listener([...latestExpenses], [...latestSettlements], [...latestMembers], { ...currentSyncStatus });
+      listener(
+        [...latestExpenses],
+        [...latestSettlements],
+        [...latestMembers],
+        { ...currentSyncStatus },
+        [...latestMessages]
+      );
     } catch (err) {
       console.error('Error in Ooty data listener:', err);
     }
@@ -135,6 +144,24 @@ function saveStoredLocalMembers(members: OotyMember[]) {
     localStorage.setItem(LOCAL_MEMBERS_KEY, JSON.stringify(members));
   } catch (err) {
     console.error('Error saving local members:', err);
+  }
+}
+
+function getStoredLocalMessages(): OotyChatMessage[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_MESSAGES_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (err) {
+    console.error('Error loading local messages:', err);
+  }
+  return [];
+}
+
+function saveStoredLocalMessages(messages: OotyChatMessage[]) {
+  try {
+    localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(messages));
+  } catch (err) {
+    console.error('Error saving local messages:', err);
   }
 }
 
@@ -324,6 +351,35 @@ function initFirestoreListeners() {
         broadcastUpdate();
       }
     );
+
+    // 4. Chat Messages Listener
+    const messagesCol = collection(db, 'ooty_messages');
+    onSnapshot(
+      messagesCol,
+      (snapshot) => {
+        const list: OotyChatMessage[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            senderId: data.senderId || 'pushkar',
+            text: data.text || '',
+            createdAt: data.createdAt?.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt || new Date().toISOString(),
+          });
+        });
+        list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+        latestMessages = list;
+        saveStoredLocalMessages(list);
+        currentSyncStatus.isConnected = true;
+        currentSyncStatus.error = undefined;
+        broadcastUpdate();
+      },
+      (error) => {
+        console.warn('Chat messages Firestore listener error:', error);
+      }
+    );
   } catch (err: any) {
     console.warn('Error attaching Firestore listeners:', err);
     currentSyncStatus.isConnected = false;
@@ -340,7 +396,13 @@ export function subscribeToOotyData(onUpdate: OotyDataListener): () => void {
   activeListeners.add(onUpdate);
 
   // Send initial in-memory state immediately
-  onUpdate([...latestExpenses], [...latestSettlements], [...latestMembers], { ...currentSyncStatus });
+  onUpdate(
+    [...latestExpenses],
+    [...latestSettlements],
+    [...latestMembers],
+    { ...currentSyncStatus },
+    [...latestMessages]
+  );
 
   // Initialize Firestore once
   initFirestoreListeners();
@@ -505,6 +567,69 @@ export async function deleteOotySettlement(settlementId: string): Promise<void> 
       currentSyncStatus.error = err?.message;
       broadcastUpdate();
       throw err;
+    }
+  }
+}
+
+/**
+ * Sends a chat message or note in the group chat, synced live to Firestore.
+ */
+export async function sendOotyChatMessage(
+  senderId: string,
+  text: string
+): Promise<string> {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  const localId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+  const now = new Date().toISOString();
+
+  const newMsg: OotyChatMessage = {
+    id: localId,
+    senderId,
+    text: trimmed,
+    createdAt: now,
+  };
+
+  latestMessages = [...latestMessages, newMsg];
+  saveStoredLocalMessages(latestMessages);
+  broadcastUpdate();
+
+  if (db) {
+    try {
+      await setDoc(doc(db, 'ooty_messages', localId), {
+        senderId,
+        text: trimmed,
+        clientCreatedAt: now,
+        createdAt: serverTimestamp(),
+      });
+      currentSyncStatus.isConnected = true;
+      currentSyncStatus.error = undefined;
+      broadcastUpdate();
+      return localId;
+    } catch (err: any) {
+      console.error('Firestore chat message error:', err);
+      broadcastUpdate();
+    }
+  }
+
+  return localId;
+}
+
+/**
+ * Deletes a chat message from Firestore.
+ */
+export async function deleteOotyChatMessage(messageId: string): Promise<void> {
+  latestMessages = latestMessages.filter((m) => m.id !== messageId);
+  saveStoredLocalMessages(latestMessages);
+  broadcastUpdate();
+
+  if (db) {
+    try {
+      await deleteDoc(doc(db, 'ooty_messages', messageId));
+      broadcastUpdate();
+    } catch (err) {
+      console.error('Firestore delete message error:', err);
     }
   }
 }

@@ -65,6 +65,13 @@ export interface OotySettlement {
   createdAt: string;
 }
 
+export interface OotyChatMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface MemberBalanceSummary {
   memberId: string;
   name: string;
