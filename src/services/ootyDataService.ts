@@ -1,14 +1,12 @@
 import {
   collection,
   onSnapshot,
-  addDoc,
   deleteDoc,
   setDoc,
   doc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { signInAnonymously } from 'firebase/auth';
+import { db } from '../lib/firebase';
 import { OotyExpense, OotySettlement, OotyMember, OOTY_MEMBERS } from '../types/ooty';
 
 const LOCAL_EXPENSES_KEY = 'splitmate_ooty_expenses_v3';
@@ -140,15 +138,9 @@ function saveStoredLocalMembers(members: OotyMember[]) {
   }
 }
 
-// Background anonymous auth so Firestore security rules pass if enabled
-export async function ensureFirebaseAuth() {
-  if (auth && !auth.currentUser) {
-    try {
-      await signInAnonymously(auth);
-    } catch {
-      // Ignored if anonymous auth is not toggled on in console
-    }
-  }
+// Background auth helper (splitmate156 Firestore rules allow direct read/write)
+export async function ensureFirebaseAuth(): Promise<void> {
+  return Promise.resolve();
 }
 
 /**
@@ -157,7 +149,6 @@ export async function ensureFirebaseAuth() {
 export async function sync13MembersToFirestore(): Promise<void> {
   if (!db) return;
   try {
-    await ensureFirebaseAuth();
     for (let i = 0; i < OOTY_MEMBERS.length; i++) {
       const m = OOTY_MEMBERS[i];
       const memberRef = doc(db, 'ooty_members', m.id);
@@ -185,7 +176,6 @@ function initFirestoreListeners() {
   if (isFirestoreInitialized || !db) return;
   isFirestoreInitialized = true;
 
-  ensureFirebaseAuth();
   sync13MembersToFirestore();
 
   try {
@@ -209,6 +199,7 @@ function initFirestoreListeners() {
           latestMembers = list;
           saveStoredLocalMembers(list);
           currentSyncStatus.isConnected = true;
+          currentSyncStatus.error = undefined;
           broadcastUpdate();
         } else {
           sync13MembersToFirestore();
@@ -248,18 +239,47 @@ function initFirestoreListeners() {
 
         if (list.length > 0) {
           list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
-          latestExpenses = list;
-          saveStoredLocalExpenses(list);
+          
+          // Auto-migrate any local unsynced expenses that were created offline or before connection
+          const firestoreIds = new Set(list.map((e) => e.id));
+          const unsynced = latestExpenses.filter((e) => e.id.startsWith('exp_') && !firestoreIds.has(e.id));
+          if (unsynced.length > 0) {
+            unsynced.forEach((exp) => {
+              const cleanPayload = {
+                title: exp.title.trim() || 'Trip Expense',
+                amount: Number(exp.amount) || 0,
+                category: exp.category || 'Miscellaneous',
+                date: exp.date || new Date().toISOString().split('T')[0],
+                paidBy: exp.paidBy || 'pushkar',
+                splitWith: Array.isArray(exp.splitWith) && exp.splitWith.length > 0 ? exp.splitWith : ['pushkar'],
+                notes: (exp.notes || '').trim(),
+                createdBy: exp.createdBy || exp.paidBy || 'pushkar',
+                clientCreatedAt: exp.createdAt || new Date().toISOString(),
+                createdAt: serverTimestamp(),
+              };
+              setDoc(doc(db!, 'ooty_expenses', exp.id), cleanPayload).catch((err) => {
+                console.warn('Auto-syncing pending local expense failed:', err);
+              });
+            });
+            // Merge unsynced into current list so they don't flash/disappear while Firestore processes setDoc
+            latestExpenses = [...unsynced, ...list];
+          } else {
+            latestExpenses = list;
+          }
+
+          saveStoredLocalExpenses(latestExpenses);
         } else if (snapshot.metadata.fromCache === false && snapshot.size === 0) {
           // Fresh database seed
           DEFAULT_INITIAL_EXPENSES.forEach((exp) => {
-            addDoc(expensesCol, {
+            setDoc(doc(db!, 'ooty_expenses', exp.id), {
               ...exp,
+              notes: exp.notes || '',
               createdAt: serverTimestamp(),
             }).catch(() => {});
           });
         }
         currentSyncStatus.isConnected = true;
+        currentSyncStatus.error = undefined;
         broadcastUpdate();
       },
       (error) => {
@@ -294,6 +314,7 @@ function initFirestoreListeners() {
         latestSettlements = list;
         saveStoredLocalSettlements(list);
         currentSyncStatus.isConnected = true;
+        currentSyncStatus.error = undefined;
         broadcastUpdate();
       },
       (error) => {
@@ -340,6 +361,7 @@ export async function addOotyExpense(
 
   const newExpense: OotyExpense = {
     ...expenseData,
+    notes: (expenseData.notes || '').trim(),
     id: localId,
     createdAt: now,
   };
@@ -352,15 +374,32 @@ export async function addOotyExpense(
   // 2. LIVE SYNC TO CLOUD FIRESTORE
   if (db) {
     try {
-      await ensureFirebaseAuth();
-      const docRef = await addDoc(collection(db, 'ooty_expenses'), {
-        ...expenseData,
+      const cleanPayload = {
+        title: expenseData.title.trim() || 'Trip Expense',
+        amount: Number(expenseData.amount) || 0,
+        category: expenseData.category || 'Miscellaneous',
+        date: expenseData.date || now.split('T')[0],
+        paidBy: expenseData.paidBy || 'pushkar',
+        splitWith: Array.isArray(expenseData.splitWith) && expenseData.splitWith.length > 0
+          ? expenseData.splitWith
+          : [expenseData.paidBy || 'pushkar'],
+        notes: (expenseData.notes || '').trim(),
+        createdBy: expenseData.createdBy || expenseData.paidBy || 'pushkar',
         clientCreatedAt: now,
         createdAt: serverTimestamp(),
-      });
-      return docRef.id;
-    } catch (err) {
-      console.warn('Firestore write warning:', err);
+      };
+
+      await setDoc(doc(db, 'ooty_expenses', localId), cleanPayload);
+      currentSyncStatus.isConnected = true;
+      currentSyncStatus.error = undefined;
+      broadcastUpdate();
+      return localId;
+    } catch (err: any) {
+      console.error('Firestore write error:', err);
+      currentSyncStatus.isConnected = false;
+      currentSyncStatus.error = err?.message || 'Database write failed';
+      broadcastUpdate();
+      throw err;
     }
   }
 
@@ -379,10 +418,16 @@ export async function deleteOotyExpense(expenseId: string): Promise<void> {
   // 2. LIVE DELETE FROM CLOUD FIRESTORE
   if (db) {
     try {
-      await ensureFirebaseAuth();
       await deleteDoc(doc(db, 'ooty_expenses', expenseId));
-    } catch (err) {
-      console.warn('Firestore delete warning:', err);
+      currentSyncStatus.isConnected = true;
+      currentSyncStatus.error = undefined;
+      broadcastUpdate();
+    } catch (err: any) {
+      console.error('Firestore delete error:', err);
+      currentSyncStatus.isConnected = false;
+      currentSyncStatus.error = err?.message;
+      broadcastUpdate();
+      throw err;
     }
   }
 }
@@ -398,6 +443,7 @@ export async function addOotySettlement(
 
   const newSettlement: OotySettlement = {
     ...settlementData,
+    note: (settlementData.note || '').trim() || 'Google Pay settlement',
     id: localId,
     createdAt: now,
   };
@@ -410,15 +456,27 @@ export async function addOotySettlement(
   // 2. CLOUD FIRESTORE WRITE
   if (db) {
     try {
-      await ensureFirebaseAuth();
-      const docRef = await addDoc(collection(db, 'ooty_settlements'), {
-        ...settlementData,
+      const cleanPayload = {
+        fromMemberId: settlementData.fromMemberId,
+        toMemberId: settlementData.toMemberId,
+        amount: Number(settlementData.amount) || 0,
+        date: settlementData.date || now.split('T')[0],
+        note: (settlementData.note || '').trim() || 'Google Pay settlement',
         clientCreatedAt: now,
         createdAt: serverTimestamp(),
-      });
-      return docRef.id;
-    } catch (err) {
-      console.warn('Firestore settlement write warning:', err);
+      };
+
+      await setDoc(doc(db, 'ooty_settlements', localId), cleanPayload);
+      currentSyncStatus.isConnected = true;
+      currentSyncStatus.error = undefined;
+      broadcastUpdate();
+      return localId;
+    } catch (err: any) {
+      console.error('Firestore settlement write error:', err);
+      currentSyncStatus.isConnected = false;
+      currentSyncStatus.error = err?.message;
+      broadcastUpdate();
+      throw err;
     }
   }
 
@@ -437,10 +495,16 @@ export async function deleteOotySettlement(settlementId: string): Promise<void> 
   // 2. CLOUD FIRESTORE DELETE
   if (db) {
     try {
-      await ensureFirebaseAuth();
       await deleteDoc(doc(db, 'ooty_settlements', settlementId));
-    } catch (err) {
-      console.warn('Firestore settlement delete warning:', err);
+      currentSyncStatus.isConnected = true;
+      currentSyncStatus.error = undefined;
+      broadcastUpdate();
+    } catch (err: any) {
+      console.error('Firestore settlement delete error:', err);
+      currentSyncStatus.isConnected = false;
+      currentSyncStatus.error = err?.message;
+      broadcastUpdate();
+      throw err;
     }
   }
 }

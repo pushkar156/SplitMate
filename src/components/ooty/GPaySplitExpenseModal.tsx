@@ -142,7 +142,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
         date: new Date().toISOString().split('T')[0],
         paidBy: paidById,
         splitWith: selectedIds,
-        notes: description.trim() ? `Split ${splitMode}: ${description.trim()}` : undefined,
+        notes: description.trim() ? `Split ${splitMode}: ${description.trim()}` : '',
         createdBy: currentUserId,
       });
 

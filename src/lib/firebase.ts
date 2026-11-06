@@ -3,12 +3,12 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAh6Y6XzO_-Gjx41BcG5hg7cRJruxXLXUo',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'splitmate156.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'splitmate156',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'splitmate156.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '753335314957',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:753335314957:web:7710cb9f318abdb9e7c344',
 };
 
 export const isFirebaseConfigured = (): boolean => {

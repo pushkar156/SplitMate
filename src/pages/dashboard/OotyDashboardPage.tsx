@@ -215,11 +215,19 @@ export const OotyDashboardPage: React.FC = () => {
                 <h1 className="font-medium text-base text-white tracking-tight leading-tight">
                   Ooty Trip
                 </h1>
-                <span
-                  className={`w-2 h-2 rounded-full ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (syncStatus.isConnected) {
+                      toast.success('Live Cloud Firestore Sync Active ⚡ All 13 members sync in real-time');
+                    } else {
+                      toast.error(`Database Status: ${syncStatus.error || 'Connecting to Firebase...'}`);
+                    }
+                  }}
+                  className={`w-2 h-2 rounded-full cursor-pointer transition-transform hover:scale-125 ${
                     syncStatus.isConnected ? 'bg-[#34a853] animate-pulse' : 'bg-[#fbbc04]'
                   }`}
-                  title={syncStatus.isConnected ? 'Live Database Sync Active' : 'Connecting to database'}
+                  title={syncStatus.isConnected ? 'Live Database Sync Active (Tap for status)' : (syncStatus.error || 'Connecting to database...')}
                 />
               </div>
               <div className="text-xs text-[#8e918f] leading-none mt-0.5">
