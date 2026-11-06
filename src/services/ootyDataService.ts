@@ -14,42 +14,6 @@ const LOCAL_SETTLEMENTS_KEY = 'splitmate_ooty_settlements_v3';
 const LOCAL_MEMBERS_KEY = 'splitmate_ooty_members_v3';
 const LOCAL_MESSAGES_KEY = 'splitmate_ooty_messages_v3';
 
-// Initial seed expenses for Ooty trip
-const DEFAULT_INITIAL_EXPENSES: OotyExpense[] = [
-  {
-    id: 'seed-exp-1',
-    title: 'Ooty Villa & Heritage Stay Booking',
-    amount: 19500,
-    category: 'Stay',
-    date: new Date().toISOString().split('T')[0],
-    paidBy: 'pushkar',
-    splitWith: [
-      'pushkar', 'jitendra', 'gayatri', 'pundlik', 'surekha',
-      'kalpana', 'pradip', 'jyoti', 'rajendra', 'jayashri',
-      'disha', 'siddhesh', 'raj',
-    ],
-    notes: 'Advance booking for 13 people cottage in Ooty',
-    createdAt: new Date().toISOString(),
-    createdBy: 'pushkar',
-  },
-  {
-    id: 'seed-exp-2',
-    title: 'Tempo Traveler Fuel & Tolls',
-    amount: 7800,
-    category: 'Travel & Fuel',
-    date: new Date().toISOString().split('T')[0],
-    paidBy: 'jitendra',
-    splitWith: [
-      'pushkar', 'jitendra', 'gayatri', 'pundlik', 'surekha',
-      'kalpana', 'pradip', 'jyoti', 'rajendra', 'jayashri',
-      'disha', 'siddhesh', 'raj',
-    ],
-    notes: 'Coimbatore to Ooty Ghat road fuel & entry permit',
-    createdAt: new Date().toISOString(),
-    createdBy: 'jitendra',
-  },
-];
-
 export interface SyncStatus {
   isConnected: boolean;
   isSyncing: boolean;
@@ -100,7 +64,7 @@ function getStoredLocalExpenses(): OotyExpense[] {
   } catch (err) {
     console.error('Error loading local expenses:', err);
   }
-  return DEFAULT_INITIAL_EXPENSES;
+  return [];
 }
 
 function saveStoredLocalExpenses(expenses: OotyExpense[]) {
@@ -265,51 +229,9 @@ function initFirestoreListeners() {
           });
         });
 
-        if (list.length > 0) {
-          list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
-          
-          // Auto-migrate any local unsynced expenses that were created offline or before connection
-          const firestoreIds = new Set(list.map((e) => e.id));
-          const unsynced = latestExpenses.filter((e) => e.id.startsWith('exp_') && !firestoreIds.has(e.id));
-          if (unsynced.length > 0) {
-            unsynced.forEach((exp) => {
-              const cleanPayload = {
-                title: exp.title.trim() || 'Trip Expense',
-                amount: Number(exp.amount) || 0,
-                category: exp.category || 'Miscellaneous',
-                date: exp.date || new Date().toISOString().split('T')[0],
-                paidBy: exp.paidBy || 'pushkar',
-                splitWith: Array.isArray(exp.splitWith) && exp.splitWith.length > 0 ? exp.splitWith : ['pushkar'],
-                notes: (exp.notes || '').trim(),
-                createdBy: exp.createdBy || exp.paidBy || 'pushkar',
-                clientCreatedAt: exp.createdAt || new Date().toISOString(),
-                createdAt: serverTimestamp(),
-              };
-              setDoc(doc(db!, 'ooty_expenses', exp.id), cleanPayload).catch((err) => {
-                console.warn('Auto-syncing pending local expense failed:', err);
-              });
-            });
-            // Merge unsynced into current list so they don't flash/disappear while Firestore processes setDoc
-            latestExpenses = [...unsynced, ...list];
-          } else {
-            latestExpenses = list;
-          }
-
-          saveStoredLocalExpenses(latestExpenses);
-        } else if (snapshot.metadata.fromCache === false && snapshot.size === 0) {
-          // Fresh database seed - only once per trip lifetime
-          const hasSeeded = localStorage.getItem('splitmate_database_seeded_v1');
-          if (!hasSeeded) {
-            localStorage.setItem('splitmate_database_seeded_v1', 'true');
-            DEFAULT_INITIAL_EXPENSES.forEach((exp) => {
-              setDoc(doc(db!, 'ooty_expenses', exp.id), {
-                ...exp,
-                notes: exp.notes || '',
-                createdAt: serverTimestamp(),
-              }).catch(() => {});
-            });
-          }
-        }
+        list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+        latestExpenses = list;
+        saveStoredLocalExpenses(latestExpenses);
         currentSyncStatus.isConnected = true;
         currentSyncStatus.error = undefined;
         broadcastUpdate();

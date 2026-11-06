@@ -209,18 +209,34 @@ export const OotyDashboardPage: React.FC = () => {
     }
   };
 
-  const handleDeleteExpense = async (id: string, title: string, paidBy?: string, createdBy?: string) => {
-    if (paidBy && paidBy !== currentUserId && createdBy !== currentUserId && currentUserId !== 'pushkar') {
+  // Delete Modal State (in-app modal, no unreliable window.confirm)
+  const [deleteTarget, setDeleteTarget] = useState<OotyExpense | null>(null);
+  const [isExpensesManagerOpen, setIsExpensesManagerOpen] = useState(false);
+
+  const handleDeleteClick = (e: React.MouseEvent, exp: OotyExpense) => {
+    e.stopPropagation();
+    const canDelete =
+      currentUserId === 'pushkar' ||
+      exp.paidBy === currentUserId ||
+      exp.createdBy === currentUserId;
+
+    if (!canDelete) {
       toast.error('Only the payer or trip coordinator can delete this expense 🛡️');
       return;
     }
-    if (window.confirm(`Delete expense "${title}"? This cannot be undone.`)) {
-      try {
-        await deleteOotyExpense(id);
-        toast.success('Expense deleted from live database 🗑️');
-      } catch (err: any) {
-        toast.error('Could not delete expense: ' + (err.message || 'Error'));
-      }
+    setDeleteTarget(exp);
+  };
+
+  const confirmDeleteExpense = async () => {
+    if (!deleteTarget) return;
+    const exp = deleteTarget;
+    setDeleteTarget(null);
+
+    try {
+      await deleteOotyExpense(exp.id);
+      toast.success(`Deleted "${exp.title}" from live database 🗑️`);
+    } catch (err: any) {
+      toast.error('Could not delete expense: ' + (err.message || 'Error'));
     }
   };
 
@@ -496,6 +512,19 @@ export const OotyDashboardPage: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={() => {
+                      setIsExpensesManagerOpen(true);
+                      setIsMenuOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
+                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
+                    }`}
+                  >
+                    <Receipt className="w-4 h-4 text-[#ea4335]" />
+                    <span>Manage / Delete Splits ({expenses.length})</span>
+                  </button>
+
+                  <button
                     onClick={downloadCSV}
                     className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
                       isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
@@ -685,13 +714,26 @@ export const OotyDashboardPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => handleDeleteExpense(exp.id, exp.title, exp.paidBy, exp.createdBy)}
+                                type="button"
+                                onClick={(e) => handleDeleteClick(e, exp)}
                                 className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
                                 title="Delete split"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                              <ChevronRight className="w-4 h-4 opacity-75" />
+                              <div className="flex items-center gap-1">
+                            {(currentUserId === 'pushkar' || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteClick(e, exp)}
+                                className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
+                                title="Delete split"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <ChevronRight className="w-4 h-4 opacity-75" />
+                          </div>
                             </div>
                           </div>
                         </div>
@@ -774,7 +816,19 @@ export const OotyDashboardPage: React.FC = () => {
                               {prog.isUserPaid ? 'Paid' : 'Unpaid'} • {formatGPayDate(exp.createdAt || exp.date)}
                             </span>
                           </div>
-                          <ChevronRight className="w-4 h-4 opacity-75" />
+                          <div className="flex items-center gap-1">
+                            {(currentUserId === 'pushkar' || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteClick(e, exp)}
+                                className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
+                                title="Delete split"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <ChevronRight className="w-4 h-4 opacity-75" />
+                          </div>
                         </div>
 
                         {/* BIG GOOGLE PAY BLUE PAY BUTTON */}
@@ -1313,6 +1367,115 @@ export const OotyDashboardPage: React.FC = () => {
         defaultAmount={settlePrefill.amount}
         members={members}
       />
+
+      {/* 6. MANAGE / DELETE ALL SPLITS MODAL */}
+      {isExpensesManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className={`w-full max-w-lg rounded-3xl border shadow-2xl flex flex-col max-h-[85vh] overflow-hidden ${
+              isDark ? 'bg-[#1e1f20] border-[#333538] text-white' : 'bg-white border-[#dadce0] text-[#202124]'
+            }`}
+          >
+            {/* Header */}
+            <div className={`p-5 border-b flex items-center justify-between shrink-0 ${isDark ? 'border-[#282a2d]' : 'border-[#e8eaed]'}`}>
+              <div>
+                <h3 className="font-semibold text-base">All Trip Expenses ({expenses.length})</h3>
+                <p className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                  Tap the red trash icon to delete any expense permanently
+                </p>
+              </div>
+              <button
+                onClick={() => setIsExpensesManagerOpen(false)}
+                className={`p-2 rounded-full border text-xs font-semibold ${
+                  isDark ? 'bg-[#282a2d] border-[#333538]' : 'bg-[#f1f3f4] border-[#dadce0]'
+                }`}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 divide-y divide-current/10 space-y-2">
+              {expenses.length === 0 ? (
+                <div className="py-12 text-center text-sm opacity-60">
+                  No expenses recorded in the trip yet.
+                </div>
+              ) : (
+                expenses.map((e) => {
+                  const payer = members.find((m) => m.id === e.paidBy);
+                  const canDelete =
+                    currentUserId === 'pushkar' ||
+                    e.paidBy === currentUserId ||
+                    e.createdBy === currentUserId;
+
+                  return (
+                    <div key={e.id} className="pt-3 pb-2 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold truncate">{e.title}</div>
+                        <div className={`text-xs mt-0.5 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                          Paid by {payer?.name || e.paidBy} • {e.date} • {e.splitWith.length} people
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="font-mono font-bold text-sm">
+                          ₹{Number(e.amount).toLocaleString('en-IN')}
+                        </div>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            onClick={(ev) => handleDeleteClick(ev, e)}
+                            className="p-2 rounded-full bg-[#ea4335]/15 hover:bg-[#ea4335]/25 text-[#ea4335] transition-colors"
+                            title="Delete this expense"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. CUSTOM TOUCH-FRIENDLY DELETE CONFIRMATION MODAL (Replaces unreliable window.confirm) */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div
+            className={`w-full max-w-sm rounded-3xl p-6 border shadow-2xl animate-in zoom-in-95 duration-150 ${
+              isDark ? 'bg-[#1e1f20] border-[#333538] text-white' : 'bg-white border-[#dadce0] text-[#202124]'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-full bg-[#ea4335]/15 text-[#ea4335] flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-semibold text-center mb-1">Delete Expense?</h3>
+            <p className={`text-xs text-center mb-6 leading-relaxed ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+              Are you sure you want to delete <span className="font-semibold text-current">"{deleteTarget.title}"</span> (₹{deleteTarget.amount.toLocaleString('en-IN')})? This will permanently remove it from the live database.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className={`py-3 rounded-full text-xs font-semibold border transition-colors ${
+                  isDark ? 'border-[#333538] hover:bg-[#282a2d] text-white' : 'border-[#dadce0] hover:bg-[#f1f3f4] text-[#202124]'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteExpense}
+                className="py-3 rounded-full text-xs font-semibold bg-[#ea4335] hover:bg-[#d93025] text-white transition-colors shadow-sm"
+              >
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
