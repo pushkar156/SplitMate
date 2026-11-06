@@ -88,7 +88,19 @@ export const OotyDashboardPage: React.FC = () => {
   // Menu Dropdown & PWA Install
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
+    return localStorage.getItem('splitmate_pushkar_admin_mode') !== 'false';
+  });
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleAdminMode = () => {
+    setIsAdminMode((prev) => {
+      const next = !prev;
+      localStorage.setItem('splitmate_pushkar_admin_mode', String(next));
+      toast.success(next ? 'Admin Mode Activated ⚡' : 'User Mode Activated 👤');
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {
@@ -390,8 +402,28 @@ export const OotyDashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Theme Toggle & Three Dots Menu */}
-          <div className="flex items-center gap-1">
+          {/* Right: Pushkar Admin Toggle, Theme Toggle & Three Dots Menu */}
+          <div className="flex items-center gap-1.5">
+            {currentUserId === 'pushkar' && (
+              <button
+                type="button"
+                onClick={handleToggleAdminMode}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-all shadow-sm ${
+                  isAdminMode
+                    ? isDark
+                      ? 'bg-[#1a3826] border-[#34a853]/60 text-[#81c995]'
+                      : 'bg-[#e6f4ea] border-[#34a853] text-[#137333]'
+                    : isDark
+                    ? 'bg-[#1e1f20] border-[#333538] text-[#8e918f]'
+                    : 'bg-[#f1f3f4] border-[#dadce0] text-[#5f6368]'
+                }`}
+                title="Toggle between Admin view and standard User view"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isAdminMode ? 'bg-[#34a853] animate-pulse' : 'bg-[#8e918f]'}`} />
+                <span>{isAdminMode ? 'Admin' : 'User'}</span>
+              </button>
+            )}
+
             <button
               onClick={toggleTheme}
               className={`p-2 rounded-full transition-colors ${
@@ -1268,6 +1300,7 @@ export const OotyDashboardPage: React.FC = () => {
         isOpen={isSplitExpenseOpen}
         onClose={() => setIsSplitExpenseOpen(false)}
         currentUserId={currentUserId}
+        isAdmin={currentUserId === 'pushkar' && isAdminMode}
         members={members}
       />
 

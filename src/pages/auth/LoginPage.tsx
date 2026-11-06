@@ -13,7 +13,7 @@ export const LoginPage: React.FC = () => {
   const { isDark, toggleTheme } = useTheme();
 
   const [members, setMembers] = useState<OotyMember[]>(OOTY_MEMBERS);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('pushkar');
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('jitendra');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -66,6 +66,13 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  // When logging in, Pushkar is moved to the very last of the list
+  const loginMembers = React.useMemo(() => {
+    const withoutPushkar = members.filter((m) => m.id !== 'pushkar');
+    const pushkarMember = members.find((m) => m.id === 'pushkar');
+    return pushkarMember ? [...withoutPushkar, pushkarMember] : withoutPushkar;
+  }, [members]);
+
   const selectedMember = members.find((m) => m.id === selectedMemberId);
 
   return (
@@ -106,7 +113,7 @@ export const LoginPage: React.FC = () => {
                 isDark ? 'bg-[#1e1f20] border-[#333538]' : 'bg-[#ffffff] border-[#dadce0]'
               }`}
             >
-              {members.slice(0, 4).map((m) => (
+              {loginMembers.slice(0, 4).map((m) => (
                 <div
                   key={m.id}
                   className="rounded-full flex items-center justify-center text-xs font-bold text-white leading-none shadow-sm"
@@ -176,7 +183,7 @@ export const LoginPage: React.FC = () => {
                       : 'bg-[#f1f3f4] border-[#dadce0] text-[#202124] focus:border-[#1a73e8]'
                   }`}
                 >
-                  {members.map((m) => (
+                  {loginMembers.map((m) => (
                     <option
                       key={m.id}
                       value={m.id}

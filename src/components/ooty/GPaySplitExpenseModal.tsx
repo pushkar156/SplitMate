@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   OotyMember,
   OOTY_MEMBERS,
-  OotyCategory,
-  OOTY_CATEGORIES,
 } from '../../types/ooty';
 import { addOotyExpense } from '../../services/ootyDataService';
 import { useTheme } from '../../context/ThemeContext';
@@ -22,6 +20,7 @@ interface GPaySplitExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUserId: string;
+  isAdmin?: boolean;
   members?: OotyMember[];
 }
 
@@ -31,6 +30,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
   isOpen,
   onClose,
   currentUserId,
+  isAdmin = false,
   members = OOTY_MEMBERS,
 }) => {
   const { isDark } = useTheme();
@@ -40,7 +40,6 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
   const [amountStr, setAmountStr] = useState<string>('500');
   const [description, setDescription] = useState<string>('');
   const [isEditingDescription, setIsEditingDescription] = useState<boolean>(false);
-  const [category, setCategory] = useState<OotyCategory>('Food & Drinks');
   const [paidById, setPaidById] = useState<string>(currentUserId);
 
   // Active Split Mode: 'evenly' | 'amounts' | 'shares' | 'percentage'
@@ -224,16 +223,17 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
       });
     }
 
-    const title = description.trim() || `${category} (Ooty)`;
+    const title = description.trim() || 'Ooty Trip Expense';
+    const finalPaidBy = isAdmin ? paidById : currentUserId;
     setIsSubmitting(true);
 
     try {
       await addOotyExpense({
         title,
         amount: totalAmount,
-        category,
+        category: 'Food & Drinks', // Default category internally
         date: new Date().toISOString().split('T')[0],
-        paidBy: paidById,
+        paidBy: finalPaidBy,
         splitWith: selectedIds,
         ...(splitDetails ? { splitDetails } : {}),
         notes: description.trim() ? `Split ${splitMode}: ${description.trim()}` : '',
@@ -293,52 +293,53 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
       </div>
 
       {/* 2. GIANT AMOUNT & DESCRIPTION SECTION */}
-      <div className="px-6 pt-2 pb-4 flex flex-col items-center text-center shrink-0">
-        {/* Giant Amount Input */}
-        <div className="flex items-center justify-center font-display tracking-tight font-normal mb-3">
-          <span className={`text-4xl sm:text-5xl font-light mr-2 ${isDark ? 'text-[#c4c7c5]' : 'text-[#5f6368]'}`}>
+      <div className="px-6 pt-3 pb-4 flex flex-col items-center text-center shrink-0 w-full">
+        {/* Giant Amount Input - Perfectly Centered, NO Spin Buttons, NO Scroll Behavior */}
+        <div className="flex items-center justify-center font-display tracking-tight font-normal mb-3 w-full">
+          <span className={`text-4xl sm:text-5xl font-light mr-1.5 select-none ${isDark ? 'text-[#c4c7c5]' : 'text-[#5f6368]'}`}>
             ₹
           </span>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             autoFocus
-            min="1"
-            max="1000000"
             value={amountStr}
             onChange={(e) => {
-              const val = e.target.value;
-              if (val === '' || (Number(val) >= 0 && Number(val) <= 10000000)) {
+              const val = e.target.value.replace(/[^0-9.]/g, '');
+              const parts = val.split('.');
+              if (parts.length > 2) return;
+              if (val === '' || Number(val) <= 10000000) {
                 setAmountStr(val);
               }
             }}
-            onKeyDown={(e) => {
-              if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
-                e.preventDefault();
-              }
-            }}
             placeholder="0"
-            className="w-48 sm:w-64 bg-transparent text-5xl sm:text-6xl font-normal text-current focus:outline-none text-left tracking-tight border-none appearance-none"
+            style={{
+              width: `${Math.max(1, amountStr.length || 1) * 38 + 10}px`,
+              minWidth: '55px',
+              maxWidth: '75vw',
+            }}
+            className="bg-transparent text-5xl sm:text-6xl font-normal text-current focus:outline-none text-left tracking-tight border-none appearance-none p-0 m-0"
           />
         </div>
 
-        {/* Chips Row: "What's this for?" & "Paid by You" */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {/* Note Chip */}
+        {/* "What's this for?" - Centered and Larger */}
+        <div className="flex flex-col items-center justify-center w-full my-1">
           {!isEditingDescription ? (
             <button
+              type="button"
               onClick={() => setIsEditingDescription(true)}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium border shadow-sm transition-all hover:scale-105 active:scale-95 ${
                 isDark
-                  ? 'bg-[#1e1f20] hover:bg-[#2a2b2d] text-[#c4c7c5] border-[#333538]'
-                  : 'bg-[#f1f3f4] hover:bg-[#e8eaed] text-[#3c4043] border-[#dadce0]'
+                  ? 'bg-[#1e1f20] hover:bg-[#2a2b2d] text-[#e3e3e3] border-[#333538]'
+                  : 'bg-[#f1f3f4] hover:bg-[#e8eaed] text-[#202124] border-[#dadce0]'
               }`}
             >
               <span>{description ? description : "What's this for?"}</span>
             </button>
           ) : (
             <div
-              className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
-                isDark ? 'bg-[#1e1f20] border-[#a8c7fa]' : 'bg-[#f1f3f4] border-[#1a73e8]'
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-full border shadow-sm ${
+                isDark ? 'bg-[#1e1f20] border-[#a8c7fa]' : 'bg-[#ffffff] border-[#1a73e8]'
               }`}
             >
               <input
@@ -349,52 +350,41 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={() => setIsEditingDescription(false)}
                 onKeyDown={(e) => e.key === 'Enter' && setIsEditingDescription(false)}
-                className="bg-transparent text-xs text-current focus:outline-none w-36"
+                className="bg-transparent text-sm text-center text-current focus:outline-none w-52 sm:w-64 font-medium"
               />
               <button
                 type="button"
                 onClick={() => setIsEditingDescription(false)}
-                className={`text-xs font-bold ${isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'}`}
+                className={`text-sm font-bold px-2 py-0.5 rounded-full ${
+                  isDark ? 'text-[#a8c7fa] hover:bg-[#a8c7fa]/20' : 'text-[#1a73e8] hover:bg-[#1a73e8]/10'
+                }`}
               >
                 ✓
               </button>
             </div>
           )}
-
-          {/* Category Chip */}
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as OotyCategory)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border focus:outline-none cursor-pointer ${
-              isDark
-                ? 'bg-[#1e1f20] hover:bg-[#2a2b2d] text-[#c4c7c5] border-[#333538]'
-                : 'bg-[#f1f3f4] hover:bg-[#e8eaed] text-[#3c4043] border-[#dadce0]'
-            }`}
-          >
-            {OOTY_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat} className={isDark ? 'bg-[#1e1f20] text-white' : 'bg-white text-black'}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          {/* Paid By Chip */}
-          <select
-            value={paidById}
-            onChange={(e) => setPaidById(e.target.value)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border focus:outline-none cursor-pointer ${
-              isDark
-                ? 'bg-[#1e1f20] hover:bg-[#2a2b2d] text-[#a8c7fa] border-[#333538]'
-                : 'bg-[#e8f0fe] hover:bg-[#d2e3fc] text-[#1a73e8] border-[#dadce0]'
-            }`}
-          >
-            {activeMembers.map((m) => (
-              <option key={m.id} value={m.id} className={isDark ? 'bg-[#1e1f20] text-white' : 'bg-white text-black'}>
-                Paid by {m.name} {m.id === currentUserId ? '(You)' : ''}
-              </option>
-            ))}
-          </select>
         </div>
+
+        {/* "Paid by..." - ONLY visible for Admin (Pushkar). Others can only record their own payments! */}
+        {isAdmin && (
+          <div className="flex items-center justify-center mt-2.5">
+            <select
+              value={paidById}
+              onChange={(e) => setPaidById(e.target.value)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium border focus:outline-none cursor-pointer transition-colors shadow-sm ${
+                isDark
+                  ? 'bg-[#1e1f20] hover:bg-[#2a2b2d] text-[#a8c7fa] border-[#333538]'
+                  : 'bg-[#e8f0fe] hover:bg-[#d2e3fc] text-[#1a73e8] border-[#dadce0]'
+              }`}
+            >
+              {activeMembers.map((m) => (
+                <option key={m.id} value={m.id} className={isDark ? 'bg-[#1e1f20] text-white' : 'bg-white text-black'}>
+                  Paid by {m.name} {m.id === currentUserId ? '(You)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* 3. FOUR SPLIT TABS BAR */}
