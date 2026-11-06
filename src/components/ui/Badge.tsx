@@ -28,3 +28,4 @@ export interface BadgeProps
 export const Badge: React.FC<BadgeProps> = ({ className, variant, ...props }) => {
   return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
 };
+

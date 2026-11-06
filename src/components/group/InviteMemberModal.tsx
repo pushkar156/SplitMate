@@ -111,3 +111,4 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
     </Modal>
   );
 };
+

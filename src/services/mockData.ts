@@ -263,3 +263,4 @@ export const DEMO_ACTIVITY: ActivityLog[] = [
     createdAt: '2026-11-04T15:30:00Z',
   },
 ];
+

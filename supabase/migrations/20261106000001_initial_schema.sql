@@ -373,3 +373,4 @@ CREATE POLICY "Admins can create group invitations"
             WHERE group_id = group_invitations.group_id AND user_id = auth.uid() AND role = 'admin'
         )
     );
+

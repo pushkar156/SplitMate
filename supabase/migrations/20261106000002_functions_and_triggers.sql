@@ -181,3 +181,4 @@ BEGIN
     RETURN v_invitation.group_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
