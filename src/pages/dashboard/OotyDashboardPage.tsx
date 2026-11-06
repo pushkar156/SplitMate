@@ -21,6 +21,7 @@ import {
 import { GPaySplitExpenseModal } from '../../components/ooty/GPaySplitExpenseModal';
 import { GPaySettleUpModal } from '../../components/ooty/GPaySettleUpModal';
 import { GPayMemberExpensesView } from '../../components/ooty/GPayMemberExpensesView';
+import { GPayExpenseDetailsModal } from '../../components/ooty/GPayExpenseDetailsModal';
 import {
   MoreVertical,
   Share2,
@@ -81,6 +82,7 @@ export const OotyDashboardPage: React.FC = () => {
   // Modals state
   const [isSplitExpenseOpen, setIsSplitExpenseOpen] = useState(false);
   const [isSettleUpOpen, setIsSettleUpOpen] = useState(false);
+  const [selectedExpenseForDetails, setSelectedExpenseForDetails] = useState<OotyExpense | null>(null);
   const [settlePrefill, setSettlePrefill] = useState<{
     fromId?: string;
     toId?: string;
@@ -661,7 +663,8 @@ export const OotyDashboardPage: React.FC = () => {
                     return (
                       <div key={item.id} className="flex flex-col items-end my-2.5">
                         <div
-                          className={`rounded-2xl p-4 w-72 sm:w-80 shadow-md border ${
+                          onClick={() => setSelectedExpenseForDetails(exp)}
+                          className={`rounded-2xl p-4 w-72 sm:w-80 shadow-md border cursor-pointer hover:shadow-lg transition-all active:scale-[0.99] ${
                             isDark
                               ? 'bg-[#282a2d] text-[#e3e3e3] border-[#333538]/40'
                               : 'bg-[#e8f0fe] text-[#202124] border-[#d2e3fc]'
@@ -745,6 +748,9 @@ export const OotyDashboardPage: React.FC = () => {
                   }
 
                   // CASE 2: Sent by Someone Else -> Left aligned card with sender name & avatar & Pay button
+                  const isUserInSplit = exp.splitWith.includes(currentUserId);
+                  const canViewDetails = isUserInSplit || (currentUserId === 'pushkar' && isAdminMode);
+
                   return (
                     <div key={item.id} className="flex flex-col items-start my-2.5">
                       {/* Sender Avatar & Name */}
@@ -762,17 +768,28 @@ export const OotyDashboardPage: React.FC = () => {
 
                       {/* Card */}
                       <div
-                        className={`rounded-2xl p-4 w-72 sm:w-80 shadow-md border ${
+                        onClick={() => {
+                          if (canViewDetails) {
+                            setSelectedExpenseForDetails(exp);
+                          } else {
+                            toast.info('You are not included in this split');
+                          }
+                        }}
+                        className={`rounded-2xl p-4 w-72 sm:w-80 shadow-md border transition-all ${
+                          canViewDetails ? 'cursor-pointer hover:shadow-lg active:scale-[0.99]' : 'cursor-default opacity-85'
+                        } ${
                           isDark
                             ? 'bg-[#282a2d] text-[#e3e3e3] border-[#333538]/40'
                             : 'bg-[#ffffff] text-[#202124] border-[#dadce0]'
                         }`}
                       >
                         <div className={`text-xs font-normal ${isDark ? 'text-[#c4c7c5]' : 'text-[#5f6368]'}`}>
-                          Split request • {exp.title}
+                          {canViewDetails
+                            ? exp.title ? `Requested for '${exp.title}'` : 'Split request'
+                            : `Split request • ${exp.title}`}
                         </div>
                         <div className="text-3xl font-medium tracking-tight my-1 font-sans">
-                          ₹{Math.round(prog.userShare > 0 ? prog.userShare : exp.amount).toLocaleString('en-IN')}
+                          ₹{Math.round(canViewDetails && prog.userShare > 0 ? prog.userShare : exp.amount).toLocaleString('en-IN')}
                         </div>
 
                         {/* Avatars */}
@@ -792,6 +809,11 @@ export const OotyDashboardPage: React.FC = () => {
                               </div>
                             );
                           })}
+                          {exp.splitWith.length > 5 && (
+                            <span className={`text-[10px] pl-2 font-mono ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                              +{exp.splitWith.length - 5}
+                            </span>
+                          )}
                         </div>
 
                         {/* Blue Progress Bar */}
@@ -816,7 +838,9 @@ export const OotyDashboardPage: React.FC = () => {
                           <div className="flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5" />
                             <span>
-                              {prog.isUserPaid ? 'Paid' : 'Unpaid'} • {formatGPayDate(exp.createdAt || exp.date)}
+                              {canViewDetails
+                                ? `${prog.isUserPaid ? 'Paid' : 'Unpaid'} • ${formatGPayDate(exp.createdAt || exp.date)}`
+                                : `No payment required • ${formatGPayDate(exp.createdAt || exp.date)}`}
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
@@ -830,14 +854,16 @@ export const OotyDashboardPage: React.FC = () => {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            <ChevronRight className="w-4 h-4 opacity-75" />
+                            {canViewDetails && <ChevronRight className="w-4 h-4 opacity-75" />}
                           </div>
                         </div>
 
-                        {/* BIG GOOGLE PAY BLUE PAY BUTTON */}
-                        {prog.userShare > 0 && !prog.isUserPaid && (
+                        {/* BLUE PAY BUTTON (Only for users who are in the split and owe) */}
+                        {canViewDetails && prog.userShare > 0 && !prog.isUserPaid && (
                           <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSettlePrefill({
                                 fromId: currentUserId,
                                 toId: exp.paidBy,
@@ -847,7 +873,7 @@ export const OotyDashboardPage: React.FC = () => {
                             }}
                             className="w-full mt-3.5 py-2.5 rounded-full bg-[#0b57d0] hover:bg-[#1a73e8] text-white font-medium text-sm transition-colors text-center active:scale-[0.98] shadow-sm"
                           >
-                            Pay ₹{Math.round(prog.userShare).toLocaleString('en-IN')}
+                            Pay
                           </button>
                         )}
                       </div>
@@ -963,6 +989,7 @@ export const OotyDashboardPage: React.FC = () => {
               }}
               onSplitExpense={() => setIsSplitExpenseOpen(true)}
               onDeleteExpense={(exp) => setDeleteTarget(exp)}
+              onSelectExpense={(exp) => setSelectedExpenseForDetails(exp)}
             />
           ) : (
             <div className="space-y-6 animate-in fade-in duration-150">
@@ -1382,6 +1409,25 @@ export const OotyDashboardPage: React.FC = () => {
         defaultAmount={settlePrefill.amount}
         members={members}
         owedByYouList={gpayBalances.owedByYouList}
+      />
+
+      {/* 5B. EXPENSE SPLIT DETAILS VIEW (Exact Image 2) */}
+      <GPayExpenseDetailsModal
+        isOpen={!!selectedExpenseForDetails}
+        onClose={() => setSelectedExpenseForDetails(null)}
+        expense={selectedExpenseForDetails}
+        currentUserId={currentUserId}
+        members={members}
+        settlements={settlements}
+        onPay={(toId, amount) => {
+          setSettlePrefill({
+            fromId: currentUserId,
+            toId: toId,
+            amount: Math.round(amount),
+          });
+          setIsSettleUpOpen(true);
+        }}
+        onDelete={(exp) => setDeleteTarget(exp)}
       />
 
       {/* 6. MANAGE / DELETE ALL SPLITS MODAL */}

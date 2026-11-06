@@ -24,6 +24,7 @@ interface GPayMemberExpensesViewProps {
   onSettleUp: (toId: string, amount: number) => void;
   onSplitExpense: () => void;
   onDeleteExpense?: (exp: OotyExpense) => void;
+  onSelectExpense?: (exp: OotyExpense) => void;
 }
 
 // Helper to format date matching Google Pay (e.g. "2 Nov", "18 Oct")
@@ -47,6 +48,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
   onSettleUp,
   onSplitExpense,
   onDeleteExpense,
+  onSelectExpense,
 }) => {
   const { isDark } = useTheme();
   const [activeFilter, setActiveFilter] = useState<'unpaid' | 'paid'>('unpaid');
@@ -216,7 +218,10 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
               details.unpaidExpenses.map((item) => (
                 <div
                   key={item.id}
+                  onClick={() => onSelectExpense?.(item.originalExpense)}
                   className={`py-3 px-2 flex items-center justify-between gap-3 rounded-2xl transition-colors ${
+                    onSelectExpense ? 'cursor-pointer' : ''
+                  } ${
                     isDark ? 'hover:bg-[#1e1f20]' : 'hover:bg-[#f8f9fa]'
                   }`}
                 >
@@ -309,7 +314,10 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                 {details.paidExpenses.map((item) => (
                   <div
                     key={item.id}
+                    onClick={() => onSelectExpense?.(item.originalExpense)}
                     className={`py-3 px-2 flex items-center justify-between gap-3 rounded-2xl transition-colors ${
+                      onSelectExpense ? 'cursor-pointer' : ''
+                    } ${
                       isDark ? 'hover:bg-[#1e1f20]' : 'hover:bg-[#f8f9fa]'
                     }`}
                   >
