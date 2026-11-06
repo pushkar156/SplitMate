@@ -25,6 +25,7 @@ import {
   LogOut,
   Trash2,
   Receipt,
+  Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -49,8 +50,33 @@ export const OotyDashboardPage: React.FC = () => {
     amount?: number;
   }>({});
 
-  // Menu Dropdown
+  // Menu Dropdown & PWA Install
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        toast.success('App installed to your phone! 📱');
+      }
+      setDeferredPrompt(null);
+    } else {
+      toast.info('To install: On Android tap browser menu (⋮) > "Install App" or "Add to Home Screen". On iPhone tap Share > "Add to Home Screen" 📲');
+    }
+    setIsMenuOpen(false);
+  };
 
   // Subscribe to real-time Ooty data
   useEffect(() => {
@@ -214,6 +240,14 @@ export const OotyDashboardPage: React.FC = () => {
             {/* Menu Popover */}
             {isMenuOpen && (
               <div className="absolute right-0 top-10 w-48 bg-[#1e1f20] border border-[#333538] rounded-2xl shadow-2xl py-2 z-50 text-xs text-[#e3e3e3] animate-in fade-in-50">
+                <button
+                  onClick={handleInstallApp}
+                  className="w-full px-4 py-2.5 text-left hover:bg-[#282a2d] flex items-center gap-2.5 text-[#34a853]"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span>Install App to Phone</span>
+                </button>
+
                 <button
                   onClick={copyWhatsAppSummary}
                   className="w-full px-4 py-2.5 text-left hover:bg-[#282a2d] flex items-center gap-2.5"

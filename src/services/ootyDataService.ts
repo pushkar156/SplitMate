@@ -5,17 +5,15 @@ import {
   deleteDoc,
   setDoc,
   doc,
-  query,
-  orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { OotyExpense, OotySettlement, OotyMember, OOTY_MEMBERS } from '../types/ooty';
 
-const LOCAL_EXPENSES_KEY = 'splitmate_ooty_expenses_v2';
-const LOCAL_SETTLEMENTS_KEY = 'splitmate_ooty_settlements_v2';
-const LOCAL_MEMBERS_KEY = 'splitmate_ooty_members_v2';
+const LOCAL_EXPENSES_KEY = 'splitmate_ooty_expenses_v3';
+const LOCAL_SETTLEMENTS_KEY = 'splitmate_ooty_settlements_v3';
+const LOCAL_MEMBERS_KEY = 'splitmate_ooty_members_v3';
 
 // Initial seed expenses for Ooty trip
 const DEFAULT_INITIAL_EXPENSES: OotyExpense[] = [
@@ -57,6 +55,35 @@ export interface SyncStatus {
   isConnected: boolean;
   isSyncing: boolean;
   error?: string;
+}
+
+type OotyDataListener = (
+  expenses: OotyExpense[],
+  settlements: OotySettlement[],
+  members: OotyMember[],
+  status: SyncStatus
+) => void;
+
+// Active in-memory subscribers (components currently rendered on screen)
+const activeListeners = new Set<OotyDataListener>();
+
+// In-memory state cache
+let latestExpenses: OotyExpense[] = getStoredLocalExpenses();
+let latestSettlements: OotySettlement[] = getStoredLocalSettlements();
+let latestMembers: OotyMember[] = getStoredLocalMembers();
+let currentSyncStatus: SyncStatus = {
+  isConnected: Boolean(db),
+  isSyncing: false,
+};
+
+function broadcastUpdate() {
+  activeListeners.forEach((listener) => {
+    try {
+      listener([...latestExpenses], [...latestSettlements], [...latestMembers], { ...currentSyncStatus });
+    } catch (err) {
+      console.error('Error in Ooty data listener:', err);
+    }
+  });
 }
 
 function getStoredLocalExpenses(): OotyExpense[] {
@@ -119,7 +146,7 @@ export async function ensureFirebaseAuth() {
     try {
       await signInAnonymously(auth);
     } catch {
-      // Ignored if anonymous auth is not toggled on
+      // Ignored if anonymous auth is not toggled on in console
     }
   }
 }
@@ -147,61 +174,25 @@ export async function sync13MembersToFirestore(): Promise<void> {
       );
     }
   } catch (err) {
-    console.warn('Syncing 13 members to Firestore skipped or pending:', err);
+    console.warn('Syncing 13 members to Firestore skipped:', err);
   }
 }
 
-/**
- * Subscribes to real-time Ooty trip data:
- * 1. Expenses (`ooty_expenses`)
- * 2. Settlements (`ooty_settlements`)
- * 3. Members (`ooty_members`)
- */
-export function subscribeToOotyData(
-  onUpdate: (
-    expenses: OotyExpense[],
-    settlements: OotySettlement[],
-    members: OotyMember[],
-    status: SyncStatus
-  ) => void
-): () => void {
+// Global flag so Firestore listener attaches once
+let isFirestoreInitialized = false;
+
+function initFirestoreListeners() {
+  if (isFirestoreInitialized || !db) return;
+  isFirestoreInitialized = true;
+
   ensureFirebaseAuth();
-
-  let latestExpenses: OotyExpense[] = getStoredLocalExpenses();
-  let latestSettlements: OotySettlement[] = getStoredLocalSettlements();
-  let latestMembers: OotyMember[] = getStoredLocalMembers();
-  let syncStatus: SyncStatus = {
-    isConnected: Boolean(db),
-    isSyncing: Boolean(db),
-  };
-
-  const notify = () => {
-    onUpdate(latestExpenses, latestSettlements, latestMembers, syncStatus);
-  };
-
-  // Immediate notify from local cache
-  notify();
-
-  if (!db) {
-    syncStatus = { isConnected: false, isSyncing: false, error: 'Firebase not configured' };
-    notify();
-    return () => {};
-  }
-
-  // Seed members into Firestore on startup
   sync13MembersToFirestore();
 
-  let unsubExpenses = () => {};
-  let unsubSettlements = () => {};
-  let unsubMembers = () => {};
-
   try {
-    // 1. Members Listener (Live from database)
+    // 1. Members Listener
     const membersCol = collection(db, 'ooty_members');
-    const membersQuery = query(membersCol, orderBy('order', 'asc'));
-
-    unsubMembers = onSnapshot(
-      membersQuery,
+    onSnapshot(
+      membersCol,
       (snapshot) => {
         if (!snapshot.empty) {
           const list: OotyMember[] = [];
@@ -211,33 +202,30 @@ export function subscribeToOotyData(
               id: docSnap.id,
               name: data.name || docSnap.id,
               avatarColor: data.avatarColor || '#FF5B42',
-              order: data.order,
+              order: data.order ?? 99,
             });
           });
+          list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           latestMembers = list;
           saveStoredLocalMembers(list);
-          syncStatus.isConnected = true;
-          syncStatus.isSyncing = false;
-          notify();
+          currentSyncStatus.isConnected = true;
+          broadcastUpdate();
         } else {
-          // If Firestore collection is empty, push the 13 members
           sync13MembersToFirestore();
         }
       },
       (error) => {
-        console.warn('Members Firestore error:', error);
-        syncStatus.isConnected = false;
-        syncStatus.error = error.message;
-        notify();
+        console.warn('Members Firestore listener error:', error);
+        currentSyncStatus.isConnected = false;
+        currentSyncStatus.error = error.message;
+        broadcastUpdate();
       }
     );
 
-    // 2. Expenses Listener (Live from database)
+    // 2. Expenses Listener
     const expensesCol = collection(db, 'ooty_expenses');
-    const expensesQuery = query(expensesCol, orderBy('createdAt', 'desc'));
-
-    unsubExpenses = onSnapshot(
-      expensesQuery,
+    onSnapshot(
+      expensesCol,
       (snapshot) => {
         const list: OotyExpense[] = [];
         snapshot.forEach((docSnap) => {
@@ -259,6 +247,7 @@ export function subscribeToOotyData(
         });
 
         if (list.length > 0) {
+          list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
           latestExpenses = list;
           saveStoredLocalExpenses(list);
         } else if (snapshot.metadata.fromCache === false && snapshot.size === 0) {
@@ -270,24 +259,21 @@ export function subscribeToOotyData(
             }).catch(() => {});
           });
         }
-        syncStatus.isConnected = true;
-        syncStatus.isSyncing = false;
-        notify();
+        currentSyncStatus.isConnected = true;
+        broadcastUpdate();
       },
       (error) => {
-        console.warn('Expenses Firestore error:', error);
-        syncStatus.isConnected = false;
-        syncStatus.error = error.message;
-        notify();
+        console.warn('Expenses Firestore listener error:', error);
+        currentSyncStatus.isConnected = false;
+        currentSyncStatus.error = error.message;
+        broadcastUpdate();
       }
     );
 
-    // 3. Settlements Listener (Live from database)
+    // 3. Settlements Listener
     const settlementsCol = collection(db, 'ooty_settlements');
-    const settlementsQuery = query(settlementsCol, orderBy('createdAt', 'desc'));
-
-    unsubSettlements = onSnapshot(
-      settlementsQuery,
+    onSnapshot(
+      settlementsCol,
       (snapshot) => {
         const list: OotySettlement[] = [];
         snapshot.forEach((docSnap) => {
@@ -304,34 +290,47 @@ export function subscribeToOotyData(
               : data.createdAt || new Date().toISOString(),
           });
         });
+        list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
         latestSettlements = list;
         saveStoredLocalSettlements(list);
-        syncStatus.isConnected = true;
-        syncStatus.isSyncing = false;
-        notify();
+        currentSyncStatus.isConnected = true;
+        broadcastUpdate();
       },
       (error) => {
-        console.warn('Settlements Firestore error:', error);
-        syncStatus.isConnected = false;
-        syncStatus.error = error.message;
-        notify();
+        console.warn('Settlements Firestore listener error:', error);
+        currentSyncStatus.isConnected = false;
+        currentSyncStatus.error = error.message;
+        broadcastUpdate();
       }
     );
   } catch (err: any) {
-    console.warn('Error attaching Firestore listeners, fallback to local cache:', err);
-    syncStatus = { isConnected: false, isSyncing: false, error: err?.message };
-    notify();
+    console.warn('Error attaching Firestore listeners:', err);
+    currentSyncStatus.isConnected = false;
+    currentSyncStatus.error = err?.message;
+    broadcastUpdate();
   }
+}
+
+/**
+ * Subscribes to real-time Ooty trip data.
+ * Fires instantly on changes without requiring any page reload.
+ */
+export function subscribeToOotyData(onUpdate: OotyDataListener): () => void {
+  activeListeners.add(onUpdate);
+
+  // Send initial in-memory state immediately
+  onUpdate([...latestExpenses], [...latestSettlements], [...latestMembers], { ...currentSyncStatus });
+
+  // Initialize Firestore once
+  initFirestoreListeners();
 
   return () => {
-    unsubExpenses();
-    unsubSettlements();
-    unsubMembers();
+    activeListeners.delete(onUpdate);
   };
 }
 
 /**
- * Adds an expense live to Firestore and synchronizes with local storage.
+ * Adds an expense live to Firestore and synchronizes with local storage instantly.
  */
 export async function addOotyExpense(
   expenseData: Omit<OotyExpense, 'id' | 'createdAt'>
@@ -345,42 +344,51 @@ export async function addOotyExpense(
     createdAt: now,
   };
 
-  // 1. Optimistic update in local cache
-  const localList = getStoredLocalExpenses();
-  const updatedList = [newExpense, ...localList];
-  saveStoredLocalExpenses(updatedList);
+  // 1. INSTANT IN-MEMORY + LOCAL STORAGE UPDATE (0ms latency, zero reload needed!)
+  latestExpenses = [newExpense, ...latestExpenses];
+  saveStoredLocalExpenses(latestExpenses);
+  broadcastUpdate();
 
-  // 2. Write directly to Cloud Firestore
+  // 2. LIVE SYNC TO CLOUD FIRESTORE
   if (db) {
-    await ensureFirebaseAuth();
-    const docRef = await addDoc(collection(db, 'ooty_expenses'), {
-      ...expenseData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+    try {
+      await ensureFirebaseAuth();
+      const docRef = await addDoc(collection(db, 'ooty_expenses'), {
+        ...expenseData,
+        clientCreatedAt: now,
+        createdAt: serverTimestamp(),
+      });
+      return docRef.id;
+    } catch (err) {
+      console.warn('Firestore write warning:', err);
+    }
   }
 
   return localId;
 }
 
 /**
- * Deletes an expense live from Cloud Firestore and synchronizes with local storage.
+ * Deletes an expense live from Cloud Firestore and synchronizes instantly.
  */
 export async function deleteOotyExpense(expenseId: string): Promise<void> {
-  // 1. Remove from local cache
-  const localList = getStoredLocalExpenses();
-  const updatedList = localList.filter((e) => e.id !== expenseId);
-  saveStoredLocalExpenses(updatedList);
+  // 1. INSTANT IN-MEMORY + LOCAL STORAGE UPDATE (0ms latency, zero reload needed!)
+  latestExpenses = latestExpenses.filter((e) => e.id !== expenseId);
+  saveStoredLocalExpenses(latestExpenses);
+  broadcastUpdate();
 
-  // 2. Delete live from Cloud Firestore
+  // 2. LIVE DELETE FROM CLOUD FIRESTORE
   if (db) {
-    await ensureFirebaseAuth();
-    await deleteDoc(doc(db, 'ooty_expenses', expenseId));
+    try {
+      await ensureFirebaseAuth();
+      await deleteDoc(doc(db, 'ooty_expenses', expenseId));
+    } catch (err) {
+      console.warn('Firestore delete warning:', err);
+    }
   }
 }
 
 /**
- * Adds a settlement payment live to Cloud Firestore.
+ * Adds a settlement payment live to Cloud Firestore and synchronizes instantly.
  */
 export async function addOotySettlement(
   settlementData: Omit<OotySettlement, 'id' | 'createdAt'>
@@ -394,34 +402,45 @@ export async function addOotySettlement(
     createdAt: now,
   };
 
-  // 1. Local update
-  const localList = getStoredLocalSettlements();
-  const updatedList = [newSettlement, ...localList];
-  saveStoredLocalSettlements(updatedList);
+  // 1. INSTANT LOCAL UPDATE
+  latestSettlements = [newSettlement, ...latestSettlements];
+  saveStoredLocalSettlements(latestSettlements);
+  broadcastUpdate();
 
-  // 2. Cloud Firestore write
+  // 2. CLOUD FIRESTORE WRITE
   if (db) {
-    await ensureFirebaseAuth();
-    const docRef = await addDoc(collection(db, 'ooty_settlements'), {
-      ...settlementData,
-      createdAt: serverTimestamp(),
-    });
-    return docRef.id;
+    try {
+      await ensureFirebaseAuth();
+      const docRef = await addDoc(collection(db, 'ooty_settlements'), {
+        ...settlementData,
+        clientCreatedAt: now,
+        createdAt: serverTimestamp(),
+      });
+      return docRef.id;
+    } catch (err) {
+      console.warn('Firestore settlement write warning:', err);
+    }
   }
 
   return localId;
 }
 
 /**
- * Deletes a settlement live from Cloud Firestore.
+ * Deletes a settlement live from Cloud Firestore and synchronizes instantly.
  */
 export async function deleteOotySettlement(settlementId: string): Promise<void> {
-  const localList = getStoredLocalSettlements();
-  const updatedList = localList.filter((s) => s.id !== settlementId);
-  saveStoredLocalSettlements(updatedList);
+  // 1. INSTANT LOCAL UPDATE
+  latestSettlements = latestSettlements.filter((s) => s.id !== settlementId);
+  saveStoredLocalSettlements(latestSettlements);
+  broadcastUpdate();
 
+  // 2. CLOUD FIRESTORE DELETE
   if (db) {
-    await ensureFirebaseAuth();
-    await deleteDoc(doc(db, 'ooty_settlements', settlementId));
+    try {
+      await ensureFirebaseAuth();
+      await deleteDoc(doc(db, 'ooty_settlements', settlementId));
+    } catch (err) {
+      console.warn('Firestore settlement delete warning:', err);
+    }
   }
 }
