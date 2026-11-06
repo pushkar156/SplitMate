@@ -7,6 +7,7 @@ import {
   simplifyOotyDebts,
   OotyExpense,
   OotySettlement,
+  getGPayPairwiseDetails,
 } from '../../types/ooty';
 
 describe('Ooty Trip 13 Members & Engine', () => {
@@ -193,6 +194,87 @@ describe('Ooty Trip 13 Members & Engine', () => {
     expect(jitOwed?.amount).toBe(300);
     const sidOwed = pushkarGPay.owedToYouList.find((item) => item.member.id === 'siddhesh');
     expect(sidOwed?.amount).toBe(200);
+  });
+
+  it('correctly provides pairwise expense breakdown (unpaid vs paid/settled)', () => {
+    const jitendra = OOTY_MEMBERS.find((m) => m.id === 'jitendra')!;
+
+    // Scenario: 4 expenses between Pushkar and Jitendra
+    // 1. Pushkar paid 240 for shwrma (Jitendra owes 120)
+    // 2. Jitendra paid 170.80 for split (Pushkar owes 85.40)
+    // 3. Jitendra paid 248.20 for split (Pushkar owes 124.10)
+    // 4. Pushkar paid 84 for ice cream (Jitendra owes 42)
+    // Total Pushkar owes Jitendra: 85.40 + 124.10 = 209.50
+    // Total Jitendra owes Pushkar: 120 + 42 = 162
+    // Net: Pushkar owes Jitendra 47.50
+    const expenses: OotyExpense[] = [
+      {
+        id: 'exp-1',
+        title: 'shwrma',
+        amount: 240,
+        category: 'Food & Drinks',
+        date: '2024-11-02',
+        paidBy: 'pushkar',
+        splitWith: ['pushkar', 'jitendra'],
+        createdAt: '2024-11-02T12:00:00Z',
+      },
+      {
+        id: 'exp-2',
+        title: 'Split request',
+        amount: 170.8,
+        category: 'Food & Drinks',
+        date: '2024-11-01',
+        paidBy: 'jitendra',
+        splitWith: ['pushkar', 'jitendra'],
+        createdAt: '2024-11-01T15:00:00Z',
+      },
+      {
+        id: 'exp-3',
+        title: 'Split request',
+        amount: 248.2,
+        category: 'Food & Drinks',
+        date: '2024-10-18',
+        paidBy: 'jitendra',
+        splitWith: ['pushkar', 'jitendra'],
+        createdAt: '2024-10-18T18:00:00Z',
+      },
+      {
+        id: 'exp-4',
+        title: 'ice cream',
+        amount: 84,
+        category: 'Food & Drinks',
+        date: '2024-10-11',
+        paidBy: 'pushkar',
+        splitWith: ['pushkar', 'jitendra'],
+        createdAt: '2024-10-11T21:00:00Z',
+      },
+    ];
+
+    // 1. Before Settlement:
+    const beforeDetails = getGPayPairwiseDetails('pushkar', jitendra, expenses, []);
+    expect(beforeDetails.roundedNet).toBe(-47.5);
+    expect(beforeDetails.statusText).toBe('You owe Jitendra');
+    expect(beforeDetails.unpaidExpenses).toHaveLength(4);
+    expect(beforeDetails.paidExpenses).toHaveLength(0);
+
+    // 2. After Pushkar pays 47.50 to Jitendra (Settle Up):
+    const settlement: OotySettlement = {
+      id: 'set-1',
+      fromMemberId: 'pushkar',
+      toMemberId: 'jitendra',
+      amount: 47.5,
+      date: '2024-11-07',
+      createdAt: '2024-11-07T10:00:00Z',
+      note: 'Google Pay settlement',
+    };
+
+    const afterDetails = getGPayPairwiseDetails('pushkar', jitendra, expenses, [settlement]);
+    expect(afterDetails.roundedNet).toBe(0);
+    expect(afterDetails.statusText).toBe('Settled up with Jitendra');
+    expect(afterDetails.unpaidExpenses).toHaveLength(0);
+    expect(afterDetails.paidExpenses).toHaveLength(4);
+    expect(afterDetails.settlements).toHaveLength(1);
+    expect(afterDetails.settlements[0].amount).toBe(47.5);
   });
 });
 

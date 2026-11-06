@@ -20,6 +20,7 @@ import {
 } from '../../services/ootyDataService';
 import { GPaySplitExpenseModal } from '../../components/ooty/GPaySplitExpenseModal';
 import { GPaySettleUpModal } from '../../components/ooty/GPaySettleUpModal';
+import { GPayMemberExpensesView } from '../../components/ooty/GPayMemberExpensesView';
 import {
   MoreVertical,
   Share2,
@@ -75,6 +76,7 @@ export const OotyDashboardPage: React.FC = () => {
 
   // Top Tabs: 'chat' (Google Pay Conversation Stream) | 'expenses' (Balances overview) | 'all_members'
   const [topTab, setTopTab] = useState<'chat' | 'expenses' | 'all_members'>('chat');
+  const [selectedMemberForDetail, setSelectedMemberForDetail] = useState<OotyMember | null>(null);
 
   // Modals state
   const [isSplitExpenseOpen, setIsSplitExpenseOpen] = useState(false);
@@ -355,11 +357,12 @@ export const OotyDashboardPage: React.FC = () => {
       }`}
     >
       {/* 1. TOP APP BAR (Exact Google Pay Group Header) */}
-      <header
-        className={`sticky top-0 z-40 backdrop-blur-md px-4 pt-3 pb-0 border-b transition-colors ${
-          isDark ? 'bg-[#000000]/95 border-[#1e1f20]' : 'bg-[#ffffff]/95 border-[#dadce0]'
-        }`}
-      >
+      {!selectedMemberForDetail && (
+        <header
+          className={`sticky top-0 z-40 backdrop-blur-md px-4 pt-3 pb-0 border-b transition-colors ${
+            isDark ? 'bg-[#000000]/95 border-[#1e1f20]' : 'bg-[#ffffff]/95 border-[#dadce0]'
+          }`}
+        >
         <div className="flex items-center justify-between pb-2">
           {/* Left: Group Title with Avatar cluster */}
           <div className="flex items-center gap-3">
@@ -554,7 +557,10 @@ export const OotyDashboardPage: React.FC = () => {
         {/* TOP TABS: "Chat" (Default like Google Pay) | "Expenses" | "All 13" */}
         <div className={`flex items-center justify-around border-t ${isDark ? 'border-[#1e1f20]' : 'border-[#e8eaed]'}`}>
           <button
-            onClick={() => setTopTab('chat')}
+            onClick={() => {
+              setSelectedMemberForDetail(null);
+              setTopTab('chat');
+            }}
             className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
               topTab === 'chat'
                 ? isDark
@@ -576,7 +582,10 @@ export const OotyDashboardPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setTopTab('expenses')}
+            onClick={() => {
+              setSelectedMemberForDetail(null);
+              setTopTab('expenses');
+            }}
             className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
               topTab === 'expenses'
                 ? isDark
@@ -598,7 +607,10 @@ export const OotyDashboardPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setTopTab('all_members')}
+            onClick={() => {
+              setSelectedMemberForDetail(null);
+              setTopTab('all_members');
+            }}
             className={`py-2.5 px-6 text-sm font-medium transition-colors relative ${
               topTab === 'all_members'
                 ? isDark
@@ -620,9 +632,10 @@ export const OotyDashboardPage: React.FC = () => {
           </button>
         </div>
       </header>
+      )}
 
       {/* 2. MAIN CONTENT AREA */}
-      <main className={`flex-1 max-w-xl mx-auto w-full px-4 pt-3 ${topTab === 'chat' ? 'pb-24' : 'pb-28'}`}>
+      <main className={`flex-1 max-w-xl mx-auto w-full px-4 ${selectedMemberForDetail ? 'pt-1 pb-24' : topTab === 'chat' ? 'pt-3 pb-24' : 'pt-3 pb-28'}`}>
         {/* ========================================================================= */}
         {/* TAB 1: GOOGLE PAY GROUP CHAT STREAM (Exact Screenshot: Requested for...) */}
         {/* ========================================================================= */}
@@ -933,176 +946,185 @@ export const OotyDashboardPage: React.FC = () => {
         {/* TAB 2: GOOGLE PAY EXPENSES BALANCES OVERVIEW (Matches First Screenshot)   */}
         {/* ========================================================================= */}
         {topTab === 'expenses' && (
-          <div className="space-y-6 animate-in fade-in duration-150">
-            {/* DUAL BALANCE CARD (Exact Image 1) */}
-            <div
-              className={`rounded-3xl p-5 border shadow-sm ${
-                isDark ? 'bg-[#1e1f20] border-[#2a2b2e]' : 'bg-[#ffffff] border-[#dadce0]'
-              }`}
-            >
-              <div className={`grid grid-cols-2 divide-x ${isDark ? 'divide-[#2e3033]' : 'divide-[#e8eaed]'}`}>
-                {/* Left: Owed by you */}
-                <div className="pr-4">
-                  <div className="text-2xl sm:text-3xl font-medium tracking-tight font-sans">
-                    ₹{gpayBalances.owedByYouTotal.toFixed(2)}
-                  </div>
-                  <div className={`text-xs mt-1 font-normal ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                    Owed by you
-                  </div>
-                </div>
-
-                {/* Right: Owed to you (Green text) */}
-                <div className="pl-5">
-                  <div
-                    className={`text-2xl sm:text-3xl font-medium tracking-tight font-sans ${
-                      isDark ? 'text-[#34a853]' : 'text-[#137333]'
-                    }`}
-                  >
-                    ₹{gpayBalances.owedToYouTotal.toFixed(2)}
-                  </div>
-                  <div className={`text-xs mt-1 font-normal ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                    Owed to you
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION 1: "Owed by you" */}
-            {gpayBalances.owedByYouList.length > 0 && (
-              <div>
-                <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                  Owed by you
-                </h2>
-                <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
-                  {gpayBalances.owedByYouList.map((item) => (
-                    <div
-                      key={item.member.id}
-                      onClick={() => {
-                        setSettlePrefill({
-                          fromId: currentUserId,
-                          toId: item.member.id,
-                          amount: Math.round(item.amount),
-                        });
-                        setIsSettleUpOpen(true);
-                      }}
-                      className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
-                        isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
-                          style={{ backgroundColor: item.member.avatarColor }}
-                        >
-                          {item.member.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {item.member.name}
-                          </div>
-                          <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                            {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right font-medium text-sm shrink-0 font-sans">
-                        ₹{item.amount.toFixed(2)}
-                      </div>
+          selectedMemberForDetail ? (
+            <GPayMemberExpensesView
+              currentUserId={currentUserId}
+              member={selectedMemberForDetail}
+              expenses={expenses}
+              settlements={settlements}
+              onBack={() => setSelectedMemberForDetail(null)}
+              onSettleUp={(toId, amount) => {
+                setSettlePrefill({
+                  fromId: currentUserId,
+                  toId: toId,
+                  amount: Math.round(amount),
+                });
+                setIsSettleUpOpen(true);
+              }}
+              onSplitExpense={() => setIsSplitExpenseOpen(true)}
+              onDeleteExpense={(exp) => setDeleteTarget(exp)}
+            />
+          ) : (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              {/* DUAL BALANCE CARD (Exact Image 1) */}
+              <div
+                className={`rounded-3xl p-5 border shadow-sm ${
+                  isDark ? 'bg-[#1e1f20] border-[#2a2b2e]' : 'bg-[#ffffff] border-[#dadce0]'
+                }`}
+              >
+                <div className={`grid grid-cols-2 divide-x ${isDark ? 'divide-[#2e3033]' : 'divide-[#e8eaed]'}`}>
+                  {/* Left: Owed by you */}
+                  <div className="pr-4">
+                    <div className="text-2xl sm:text-3xl font-medium tracking-tight font-sans">
+                      ₹{gpayBalances.owedByYouTotal.toFixed(2)}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    <div className={`text-xs mt-1 font-normal ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                      Owed by you
+                    </div>
+                  </div>
 
-            {/* SECTION 2: "1 person owes you" */}
-            {gpayBalances.owedToYouList.length > 0 && (
-              <div>
-                <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                  {gpayBalances.owedToYouList.length} {gpayBalances.owedToYouList.length === 1 ? 'person owes' : 'people owe'} you
-                </h2>
-                <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
-                  {gpayBalances.owedToYouList.map((item) => (
+                  {/* Right: Owed to you (Green text) */}
+                  <div className="pl-5">
                     <div
-                      key={item.member.id}
-                      onClick={() => {
-                        setSettlePrefill({
-                          fromId: item.member.id,
-                          toId: currentUserId,
-                          amount: Math.round(item.amount),
-                        });
-                        setIsSettleUpOpen(true);
-                      }}
-                      className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
-                        isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
+                      className={`text-2xl sm:text-3xl font-medium tracking-tight font-sans ${
+                        isDark ? 'text-[#34a853]' : 'text-[#137333]'
                       }`}
                     >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
-                          style={{ backgroundColor: item.member.avatarColor }}
-                        >
-                          {item.member.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {item.member.name}
-                          </div>
-                          <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                            {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
+                      ₹{gpayBalances.owedToYouTotal.toFixed(2)}
+                    </div>
+                    <div className={`text-xs mt-1 font-normal ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                      Owed to you
+                    </div>
+                  </div>
+                </div>
+              </div>
 
+              {/* SECTION 1: "Owed by you" */}
+              {gpayBalances.owedByYouList.length > 0 && (
+                <div>
+                  <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                    Owed by you
+                  </h2>
+                  <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
+                    {gpayBalances.owedByYouList.map((item) => (
                       <div
-                        className={`text-right font-medium text-sm shrink-0 font-sans ${
-                          isDark ? 'text-[#34a853]' : 'text-[#137333]'
+                        key={item.member.id}
+                        onClick={() => setSelectedMemberForDetail(item.member)}
+                        className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
+                          isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
                         }`}
                       >
-                        ₹{item.amount.toFixed(2)}
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
+                            style={{ backgroundColor: item.member.avatarColor }}
+                          >
+                            {item.member.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {item.member.name}
+                            </div>
+                            <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                              {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right font-medium text-sm shrink-0 font-sans">
+                          ₹{item.amount.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 2: "1 person owes you" */}
+              {gpayBalances.owedToYouList.length > 0 && (
+                <div>
+                  <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                    {gpayBalances.owedToYouList.length} {gpayBalances.owedToYouList.length === 1 ? 'person owes' : 'people owe'} you
+                  </h2>
+                  <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
+                    {gpayBalances.owedToYouList.map((item) => (
+                      <div
+                        key={item.member.id}
+                        onClick={() => setSelectedMemberForDetail(item.member)}
+                        className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
+                          isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
+                            style={{ backgroundColor: item.member.avatarColor }}
+                          >
+                            {item.member.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {item.member.name}
+                            </div>
+                            <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                              {item.unpaidExpenseCount} unpaid expense{item.unpaidExpenseCount > 1 ? 's' : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`text-right font-medium text-sm shrink-0 font-sans ${
+                            isDark ? 'text-[#34a853]' : 'text-[#137333]'
+                          }`}
+                        >
+                          ₹{item.amount.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 3: "Settled" */}
+              <div>
+                <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                  Settled
+                </h2>
+                <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
+                  {gpayBalances.settledList.map((item) => (
+                    <div
+                      key={item.member.id}
+                      onClick={() => setSelectedMemberForDetail(item.member)}
+                      className={`py-3.5 px-1 flex items-center justify-between gap-3 cursor-pointer rounded-xl transition-colors ${
+                        isDark ? 'hover:bg-[#1e1f20]/60' : 'hover:bg-[#f1f3f4]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 opacity-80 shadow-sm"
+                          style={{ backgroundColor: item.member.avatarColor }}
+                        >
+                          {item.member.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {item.member.name}
+                          </div>
+                          <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                            {item.totalExpenseCount > 0 ? `${item.totalExpenseCount} expenses` : 'All settled'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`text-right font-medium text-sm shrink-0 font-sans ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
+                        ₹0.00
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* SECTION 3: "Settled" */}
-            <div>
-              <h2 className={`text-xs font-semibold px-1 mb-2 ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                Settled
-              </h2>
-              <div className={`divide-y ${isDark ? 'divide-[#1e1f20]' : 'divide-[#e8eaed]'}`}>
-                {gpayBalances.settledList.map((item) => (
-                  <div
-                    key={item.member.id}
-                    className="py-3.5 px-1 flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 opacity-80 shadow-sm"
-                        style={{ backgroundColor: item.member.avatarColor }}
-                      >
-                        {item.member.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {item.member.name}
-                        </div>
-                        <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                          {item.totalExpenseCount > 0 ? `${item.totalExpenseCount} expenses` : 'All settled'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={`text-right font-medium text-sm shrink-0 font-sans ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
-                      ₹0.00
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* ========================================================================= */}
@@ -1249,8 +1271,9 @@ export const OotyDashboardPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* 3. BOTTOM BAR (Exact Google Pay UI for Chat vs Expenses)                  */}
       {/* ========================================================================= */}
-      {topTab === 'chat' ? (
-        // EXACT CHAT BOTTOM BAR (Image 5: Split expense pill + Message... capsule)
+      {!selectedMemberForDetail && (
+        topTab === 'chat' ? (
+          // EXACT CHAT BOTTOM BAR (Image 5: Split expense pill + Message... capsule)
         <div
           className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-3 py-2.5 max-w-xl mx-auto flex items-center gap-2 transition-colors ${
             isDark ? 'bg-[#000000]/95 border-[#1e1f20]' : 'bg-[#ffffff]/95 border-[#dadce0]'
@@ -1337,6 +1360,7 @@ export const OotyDashboardPage: React.FC = () => {
             </button>
           </div>
         </div>
+      )
       )}
 
       {/* 4. GOOGLE PAY SPLIT EXPENSE SCREEN MODAL (Exact Images 2, 3, 4) */}
