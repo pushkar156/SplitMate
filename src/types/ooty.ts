@@ -50,6 +50,7 @@ export interface OotyExpense {
   date: string;
   paidBy: string; // member id
   splitWith: string[]; // member ids involved
+  splitDetails?: Record<string, number>; // memberId -> exact owed amount for custom/unequal splits
   notes?: string;
   createdAt: string;
   createdBy?: string;
@@ -131,23 +132,25 @@ export function calculateGPayBalancesForUser(
   for (const exp of expenses) {
     if (!exp.amount || exp.amount <= 0 || !exp.splitWith || exp.splitWith.length === 0) continue;
     const splitCount = exp.splitWith.length;
-    const sharePerPerson = exp.amount / splitCount;
+    const defaultShare = exp.amount / splitCount;
 
     const youPaid = exp.paidBy === currentUserId;
     const youParticipated = exp.splitWith.includes(currentUserId);
+    const youShare = exp.splitDetails?.[currentUserId] ?? defaultShare;
 
     for (const m of otherMembers) {
       const otherPaid = exp.paidBy === m.id;
       const otherParticipated = exp.splitWith.includes(m.id);
+      const otherShare = exp.splitDetails?.[m.id] ?? defaultShare;
 
       if (youPaid && otherParticipated) {
-        // Other person owes you
-        pairStats[m.id].net += sharePerPerson;
+        // Other person owes you their share
+        pairStats[m.id].net += otherShare;
         pairStats[m.id].unpaidCount += 1;
         pairStats[m.id].totalCount += 1;
       } else if (otherPaid && youParticipated) {
-        // You owe other person
-        pairStats[m.id].net -= sharePerPerson;
+        // You owe other person your share
+        pairStats[m.id].net -= youShare;
         pairStats[m.id].unpaidCount += 1;
         pairStats[m.id].totalCount += 1;
       } else if (otherParticipated || otherPaid) {
@@ -242,11 +245,12 @@ export function calculateOotyBalances(
       summaries[exp.paidBy].totalPaid += exp.amount;
     }
 
-    // Debit the participants
-    const sharePerPerson = exp.amount / splitCount;
+    // Debit the participants (supports unequal/custom splits)
+    const defaultShare = exp.amount / splitCount;
     for (const participantId of exp.splitWith) {
       if (summaries[participantId]) {
-        summaries[participantId].totalShare += sharePerPerson;
+        const participantShare = exp.splitDetails?.[participantId] ?? defaultShare;
+        summaries[participantId].totalShare += participantShare;
       }
     }
   }

@@ -197,8 +197,12 @@ export const OotyDashboardPage: React.FC = () => {
     }
   };
 
-  const handleDeleteExpense = async (id: string, title: string) => {
-    if (window.confirm(`Delete expense "${title}"?`)) {
+  const handleDeleteExpense = async (id: string, title: string, paidBy?: string, createdBy?: string) => {
+    if (paidBy && paidBy !== currentUserId && createdBy !== currentUserId && currentUserId !== 'pushkar') {
+      toast.error('Only the payer or trip coordinator can delete this expense 🛡️');
+      return;
+    }
+    if (window.confirm(`Delete expense "${title}"? This cannot be undone.`)) {
       try {
         await deleteOotyExpense(id);
         toast.success('Expense deleted from live database 🗑️');
@@ -242,19 +246,27 @@ export const OotyDashboardPage: React.FC = () => {
   };
 
   const downloadCSV = () => {
+    const sanitizeCSV = (val: string) => {
+      let clean = (val || '').replace(/"/g, '""');
+      if (/^[=+\-@\t\r]/.test(clean)) {
+        clean = `'${clean}`;
+      }
+      return clean;
+    };
+
     const headers = ['Date', 'Title', 'Category', 'Paid By', 'Amount (INR)', 'Split Count', 'Split With', 'Notes'];
     const rows = expenses.map((e) => {
       const payerName = members.find((m) => m.id === e.paidBy)?.name || e.paidBy;
       const splitNames = e.splitWith.map((id) => members.find((m) => m.id === id)?.name || id).join('; ');
       return [
-        `"${e.date}"`,
-        `"${e.title.replace(/"/g, '""')}"`,
-        `"${e.category}"`,
-        `"${payerName}"`,
+        `"${sanitizeCSV(e.date)}"`,
+        `"${sanitizeCSV(e.title)}"`,
+        `"${sanitizeCSV(e.category)}"`,
+        `"${sanitizeCSV(payerName)}"`,
         e.amount,
         e.splitWith.length,
-        `"${splitNames}"`,
-        `"${(e.notes || '').replace(/"/g, '""')}"`,
+        `"${sanitizeCSV(splitNames)}"`,
+        `"${sanitizeCSV(e.notes || '')}"`,
       ].join(',');
     });
 
@@ -270,19 +282,20 @@ export const OotyDashboardPage: React.FC = () => {
     setIsMenuOpen(false);
   };
 
-  // Helper to calculate payment progress for an expense card
+  // Helper to calculate payment progress for an expense card (supports custom splits)
   const getExpenseProgress = (exp: OotyExpense) => {
     const totalInvolved = exp.splitWith.length || 1;
-    const sharePerPerson = exp.amount / totalInvolved;
+    const defaultShare = exp.amount / totalInvolved;
     const isPayer = exp.paidBy === currentUserId;
     const userInvolved = exp.splitWith.includes(currentUserId);
-    const userShare = userInvolved ? sharePerPerson : 0;
+    const userShare = userInvolved ? (exp.splitDetails?.[currentUserId] ?? defaultShare) : 0;
 
-    let paidCount = 1;
+    let paidCount = 1; // Payer is automatically paid
     exp.splitWith.forEach((mId) => {
       if (mId === exp.paidBy) return;
+      const mShare = exp.splitDetails?.[mId] ?? defaultShare;
       const hasSettled = settlements.some(
-        (s) => s.fromMemberId === mId && s.toMemberId === exp.paidBy && s.amount >= sharePerPerson * 0.95
+        (s) => s.fromMemberId === mId && s.toMemberId === exp.paidBy && s.amount >= mShare * 0.95
       );
       if (hasSettled) paidCount++;
     });
@@ -291,12 +304,12 @@ export const OotyDashboardPage: React.FC = () => {
       (s) => s.fromMemberId === currentUserId && s.toMemberId === exp.paidBy && s.amount >= userShare * 0.95
     );
 
-    const remainingAmount = Math.max(0, exp.amount - sharePerPerson * paidCount);
+    const remainingAmount = Math.max(0, exp.amount - defaultShare * paidCount);
     const progressPercent = Math.min(100, Math.round((paidCount / totalInvolved) * 100));
 
     return {
       totalInvolved,
-      sharePerPerson,
+      sharePerPerson: userShare,
       isPayer,
       userInvolved,
       userShare,
@@ -322,21 +335,30 @@ export const OotyDashboardPage: React.FC = () => {
         <div className="flex items-center justify-between pb-2">
           {/* Left: Group Title with Avatar cluster */}
           <div className="flex items-center gap-3">
-            {/* Google Pay Style 4-avatar cluster */}
-            <div
-              className={`w-10 h-10 rounded-full border grid grid-cols-2 gap-0.5 p-0.5 overflow-hidden shrink-0 shadow-sm ${
-                isDark ? 'bg-[#1e1f20] border-[#333538]' : 'bg-[#ffffff] border-[#dadce0]'
-              }`}
-            >
-              {members.slice(0, 4).map((m) => (
-                <div
-                  key={m.id}
-                  className="rounded-full flex items-center justify-center text-[9px] font-bold text-white leading-none shadow-sm"
-                  style={{ backgroundColor: m.avatarColor }}
-                >
-                  {m.name.charAt(0)}
-                </div>
-              ))}
+            {/* Google Pay Style 4-avatar cluster with SplitMate Logo badge */}
+            <div className="relative shrink-0">
+              <div
+                className={`w-10 h-10 rounded-full border grid grid-cols-2 gap-0.5 p-0.5 overflow-hidden shadow-sm ${
+                  isDark ? 'bg-[#1e1f20] border-[#333538]' : 'bg-[#ffffff] border-[#dadce0]'
+                }`}
+              >
+                {members.slice(0, 4).map((m) => (
+                  <div
+                    key={m.id}
+                    className="rounded-full flex items-center justify-center text-[9px] font-bold text-white leading-none shadow-sm"
+                    style={{ backgroundColor: m.avatarColor }}
+                  >
+                    {m.name.charAt(0)}
+                  </div>
+                ))}
+              </div>
+              <img
+                src="/logo.svg"
+                alt="Logo"
+                className={`w-4 h-4 rounded-full absolute -bottom-1 -right-1 border shadow-sm ${
+                  isDark ? 'border-[#000000]' : 'border-[#ffffff]'
+                }`}
+              />
             </div>
 
             <div>
@@ -393,10 +415,21 @@ export const OotyDashboardPage: React.FC = () => {
               {/* Menu Popover */}
               {isMenuOpen && (
                 <div
-                  className={`absolute right-0 top-10 w-52 border rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in-50 ${
+                  className={`absolute right-0 top-10 w-56 border rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in-50 ${
                     isDark ? 'bg-[#1e1f20] border-[#333538] text-[#e3e3e3]' : 'bg-[#ffffff] border-[#dadce0] text-[#202124]'
                   }`}
                 >
+                  {/* Brand Header */}
+                  <div className={`px-4 py-2 border-b flex items-center gap-2.5 mb-1 ${
+                    isDark ? 'border-[#282a2d]' : 'border-[#f1f3f4]'
+                  }`}>
+                    <img src="/logo.svg" alt="SplitMate" className="w-6 h-6 rounded-lg shadow-sm" />
+                    <div>
+                      <div className="font-bold text-xs tracking-tight">SplitMate</div>
+                      <div className={`text-[10px] ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>Ooty Trip Edition</div>
+                    </div>
+                  </div>
+
                   <button
                     onClick={() => {
                       toggleTheme();
@@ -620,7 +653,7 @@ export const OotyDashboardPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => handleDeleteExpense(exp.id, exp.title)}
+                                onClick={() => handleDeleteExpense(exp.id, exp.title, exp.paidBy, exp.createdBy)}
                                 className="p-1 hover:text-[#ea4335] text-current transition-colors opacity-75 hover:opacity-100"
                                 title="Delete split"
                               >

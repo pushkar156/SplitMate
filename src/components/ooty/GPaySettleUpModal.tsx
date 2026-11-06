@@ -149,8 +149,20 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
             <input
               type="number"
               autoFocus
+              min="1"
+              max="1000000"
               value={amountStr}
-              onChange={(e) => setAmountStr(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || (Number(val) >= 0 && Number(val) <= 10000000)) {
+                  setAmountStr(val);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                  e.preventDefault();
+                }
+              }}
               placeholder="0"
               className="w-48 sm:w-64 bg-transparent text-5xl sm:text-6xl font-normal text-current focus:outline-none text-left tracking-tight border-none appearance-none"
             />

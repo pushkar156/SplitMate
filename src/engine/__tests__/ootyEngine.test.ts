@@ -154,5 +154,45 @@ describe('Ooty Trip 13 Members & Engine', () => {
     expect(jitendraGPay.owedByYouList[0].member.id).toBe('pushkar');
     expect(jitendraGPay.owedByYouList[0].amount).toBe(100);
   });
+
+  it('correctly handles unequal custom splits (splitDetails)', () => {
+    // Pushkar paid 1000 for dinner: Pushkar owes 500, Jitendra owes 300, Siddhesh owes 200
+    const expenses: OotyExpense[] = [
+      {
+        id: 'exp-custom',
+        title: 'Special Dinner',
+        amount: 1000,
+        category: 'Food & Drinks',
+        date: '2024-11-06',
+        paidBy: 'pushkar',
+        splitWith: ['pushkar', 'jitendra', 'siddhesh'],
+        splitDetails: {
+          pushkar: 500,
+          jitendra: 300,
+          siddhesh: 200,
+        },
+        createdAt: '2024-11-06T19:00:00Z',
+      },
+    ];
+
+    const balances = calculateOotyBalances(expenses, []);
+    expect(balances['pushkar'].totalPaid).toBe(1000);
+    expect(balances['pushkar'].totalShare).toBe(500);
+    expect(balances['pushkar'].netBalance).toBe(500);
+
+    expect(balances['jitendra'].totalShare).toBe(300);
+    expect(balances['jitendra'].netBalance).toBe(-300);
+
+    expect(balances['siddhesh'].totalShare).toBe(200);
+    expect(balances['siddhesh'].netBalance).toBe(-200);
+
+    // GPay perspective for Pushkar
+    const pushkarGPay = calculateGPayBalancesForUser('pushkar', expenses, []);
+    expect(pushkarGPay.owedToYouTotal).toBe(500); // 300 from Jitendra + 200 from Siddhesh
+    const jitOwed = pushkarGPay.owedToYouList.find((item) => item.member.id === 'jitendra');
+    expect(jitOwed?.amount).toBe(300);
+    const sidOwed = pushkarGPay.owedToYouList.find((item) => item.member.id === 'siddhesh');
+    expect(sidOwed?.amount).toBe(200);
+  });
 });
 

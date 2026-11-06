@@ -91,23 +91,38 @@ export const LoginPage: React.FC = () => {
 
       {/* Main Content Box */}
       <div className="w-full max-w-md mx-auto my-auto py-6">
-        {/* Google Pay Style Group Header (Exact match to screenshot) */}
+        {/* Brand & Group Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          {/* 4-avatar cluster */}
-          <div
-            className={`w-16 h-16 rounded-full border grid grid-cols-2 gap-0.5 p-1 overflow-hidden shadow-md mb-3 ${
-              isDark ? 'bg-[#1e1f20] border-[#333538]' : 'bg-[#ffffff] border-[#dadce0]'
-            }`}
-          >
-            {members.slice(0, 4).map((m) => (
-              <div
-                key={m.id}
-                className="rounded-full flex items-center justify-center text-xs font-bold text-white leading-none shadow-sm"
-                style={{ backgroundColor: m.avatarColor }}
-              >
-                {m.name.charAt(0)}
-              </div>
-            ))}
+          {/* SplitMate Brand Logo Banner */}
+          <div className="flex items-center gap-2.5 mb-4">
+            <img src="/logo.svg" alt="SplitMate Logo" className="w-9 h-9 rounded-2xl shadow-sm" />
+            <span className="text-xl font-bold tracking-tight font-sans">SplitMate</span>
+          </div>
+
+          {/* 4-avatar cluster with mini logo indicator */}
+          <div className="relative mb-3">
+            <div
+              className={`w-16 h-16 rounded-full border grid grid-cols-2 gap-0.5 p-1 overflow-hidden shadow-md ${
+                isDark ? 'bg-[#1e1f20] border-[#333538]' : 'bg-[#ffffff] border-[#dadce0]'
+              }`}
+            >
+              {members.slice(0, 4).map((m) => (
+                <div
+                  key={m.id}
+                  className="rounded-full flex items-center justify-center text-xs font-bold text-white leading-none shadow-sm"
+                  style={{ backgroundColor: m.avatarColor }}
+                >
+                  {m.name.charAt(0)}
+                </div>
+              ))}
+            </div>
+            <img
+              src="/logo.svg"
+              alt="Logo Badge"
+              className={`w-5 h-5 rounded-full absolute -bottom-1 -right-1 border-2 shadow-sm ${
+                isDark ? 'border-[#000000]' : 'border-[#ffffff]'
+              }`}
+            />
           </div>
 
           <div className="flex items-center gap-2">

@@ -256,6 +256,7 @@ function initFirestoreListeners() {
             date: data.date || new Date().toISOString().split('T')[0],
             paidBy: data.paidBy || 'pushkar',
             splitWith: Array.isArray(data.splitWith) ? data.splitWith : [],
+            splitDetails: data.splitDetails || undefined,
             notes: data.notes || '',
             createdAt: data.createdAt?.toDate
               ? data.createdAt.toDate().toISOString()
@@ -296,14 +297,18 @@ function initFirestoreListeners() {
 
           saveStoredLocalExpenses(latestExpenses);
         } else if (snapshot.metadata.fromCache === false && snapshot.size === 0) {
-          // Fresh database seed
-          DEFAULT_INITIAL_EXPENSES.forEach((exp) => {
-            setDoc(doc(db!, 'ooty_expenses', exp.id), {
-              ...exp,
-              notes: exp.notes || '',
-              createdAt: serverTimestamp(),
-            }).catch(() => {});
-          });
+          // Fresh database seed - only once per trip lifetime
+          const hasSeeded = localStorage.getItem('splitmate_database_seeded_v1');
+          if (!hasSeeded) {
+            localStorage.setItem('splitmate_database_seeded_v1', 'true');
+            DEFAULT_INITIAL_EXPENSES.forEach((exp) => {
+              setDoc(doc(db!, 'ooty_expenses', exp.id), {
+                ...exp,
+                notes: exp.notes || '',
+                createdAt: serverTimestamp(),
+              }).catch(() => {});
+            });
+          }
         }
         currentSyncStatus.isConnected = true;
         currentSyncStatus.error = undefined;
@@ -426,6 +431,7 @@ export async function addOotyExpense(
     notes: (expenseData.notes || '').trim(),
     id: localId,
     createdAt: now,
+    ...(expenseData.splitDetails ? { splitDetails: expenseData.splitDetails } : {}),
   };
 
   // 1. INSTANT IN-MEMORY + LOCAL STORAGE UPDATE (0ms latency, zero reload needed!)
@@ -447,6 +453,7 @@ export async function addOotyExpense(
           : [expenseData.paidBy || 'pushkar'],
         notes: (expenseData.notes || '').trim(),
         createdBy: expenseData.createdBy || expenseData.paidBy || 'pushkar',
+        ...(expenseData.splitDetails ? { splitDetails: expenseData.splitDetails } : {}),
         clientCreatedAt: now,
         createdAt: serverTimestamp(),
       };

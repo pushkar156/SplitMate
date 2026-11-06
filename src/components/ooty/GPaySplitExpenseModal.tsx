@@ -94,6 +94,29 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
     .filter(([id]) => selectedIds.includes(id))
     .reduce((sum, [, shares]) => sum + (shares || 0), 0);
 
+  // Amounts mode allocation:
+  const allocatedAmountsSum = selectedIds.reduce((sum, id) => {
+    const val = parseFloat(customAmounts[id] || '0') || 0;
+    return sum + val;
+  }, 0);
+  const amountsDiff = Math.round((totalAmount - allocatedAmountsSum) * 100) / 100;
+
+  // Percentage mode allocation:
+  const allocatedPctSum = selectedIds.reduce((sum, id) => {
+    const val = parseFloat(customPercentages[id] || '0') || 0;
+    return sum + val;
+  }, 0);
+  const pctDiff = Math.round((100 - allocatedPctSum) * 10) / 10;
+
+  const isFormValid =
+    totalAmount > 0 &&
+    totalAmount <= 1000000 &&
+    selectedIds.length > 0 &&
+    (splitMode === 'evenly' ||
+      (splitMode === 'amounts' && Math.abs(amountsDiff) < 1) ||
+      (splitMode === 'shares' && totalSharesCount > 0) ||
+      (splitMode === 'percentage' && Math.abs(pctDiff) < 1));
+
   // Toggle member participation
   const toggleMember = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -119,6 +142,34 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
     }
   };
 
+  // Auto distribute remaining amounts evenly
+  const autoDistributeAmounts = () => {
+    if (selectedIds.length === 0 || totalAmount <= 0) return;
+    const perPerson = Math.floor((totalAmount / selectedIds.length) * 100) / 100;
+    const remainder = Math.round((totalAmount - perPerson * selectedIds.length) * 100) / 100;
+    const newAmounts: Record<string, string> = {};
+    selectedIds.forEach((id, idx) => {
+      const amt = idx === 0 ? perPerson + remainder : perPerson;
+      newAmounts[id] = amt.toString();
+    });
+    setCustomAmounts(newAmounts);
+    toast.success('Distributed amounts evenly as starting point ⚡');
+  };
+
+  // Auto distribute percentages evenly
+  const autoDistributePercentages = () => {
+    if (selectedIds.length === 0) return;
+    const perPerson = Math.floor((100 / selectedIds.length) * 10) / 10;
+    const remainder = Math.round((100 - perPerson * selectedIds.length) * 10) / 10;
+    const newPcts: Record<string, string> = {};
+    selectedIds.forEach((id, idx) => {
+      const pct = idx === 0 ? perPerson + remainder : perPerson;
+      newPcts[id] = pct.toString();
+    });
+    setCustomPercentages(newPcts);
+    toast.success('Distributed percentages evenly ⚡');
+  };
+
   // Handle final submission
   const handleSendRequest = async () => {
     if (totalAmount <= 0) {
@@ -126,9 +177,51 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
       return;
     }
 
+    if (totalAmount > 1000000) {
+      toast.error('Maximum allowed expense is ₹10,00,000');
+      return;
+    }
+
     if (selectedIds.length === 0) {
       toast.error('Please select at least one person to split with');
       return;
+    }
+
+    let splitDetails: Record<string, number> | undefined = undefined;
+
+    if (splitMode === 'amounts') {
+      if (Math.abs(amountsDiff) >= 1) {
+        if (amountsDiff > 0) {
+          toast.error(`Please allocate the remaining ₹${amountsDiff.toFixed(2)}`);
+        } else {
+          toast.error(`Amounts exceed total by ₹${Math.abs(amountsDiff).toFixed(2)}`);
+        }
+        return;
+      }
+      splitDetails = {};
+      selectedIds.forEach((id) => {
+        splitDetails![id] = parseFloat(customAmounts[id] || '0') || 0;
+      });
+    } else if (splitMode === 'shares') {
+      if (totalSharesCount <= 0) {
+        toast.error('Total shares must be at least 1');
+        return;
+      }
+      splitDetails = {};
+      selectedIds.forEach((id) => {
+        const sh = customShares[id] ?? 1;
+        splitDetails![id] = Math.round(((totalAmount * sh) / totalSharesCount) * 100) / 100;
+      });
+    } else if (splitMode === 'percentage') {
+      if (Math.abs(pctDiff) >= 1) {
+        toast.error(`Percentages must equal 100% (currently ${allocatedPctSum}%)`);
+        return;
+      }
+      splitDetails = {};
+      selectedIds.forEach((id) => {
+        const pct = parseFloat(customPercentages[id] || '0') || 0;
+        splitDetails![id] = Math.round(((totalAmount * pct) / 100) * 100) / 100;
+      });
     }
 
     const title = description.trim() || `${category} (Ooty)`;
@@ -142,6 +235,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
         date: new Date().toISOString().split('T')[0],
         paidBy: paidById,
         splitWith: selectedIds,
+        ...(splitDetails ? { splitDetails } : {}),
         notes: description.trim() ? `Split ${splitMode}: ${description.trim()}` : '',
         createdBy: currentUserId,
       });
@@ -208,8 +302,20 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
           <input
             type="number"
             autoFocus
+            min="1"
+            max="1000000"
             value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || (Number(val) >= 0 && Number(val) <= 10000000)) {
+                setAmountStr(val);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                e.preventDefault();
+              }
+            }}
             placeholder="0"
             className="w-48 sm:w-64 bg-transparent text-5xl sm:text-6xl font-normal text-current focus:outline-none text-left tracking-tight border-none appearance-none"
           />
@@ -390,12 +496,74 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
         </button>
       </div>
 
-      {/* 4. MODE HEADER LABEL */}
-      <div className={`px-6 py-2.5 text-xs font-semibold tracking-wide shrink-0 ${isDark ? 'text-[#c4c7c5]' : 'text-[#5f6368]'}`}>
-        {splitMode === 'evenly' && `Split evenly (${selectedIds.length} of ${activeMembers.length} selected)`}
-        {splitMode === 'amounts' && 'Split by amounts'}
-        {splitMode === 'shares' && 'Split by shares'}
-        {splitMode === 'percentage' && 'Split by percentage'}
+      {/* 4. MODE HEADER LABEL & VALIDATION STATUS */}
+      <div className={`px-4 sm:px-6 py-2 text-xs font-semibold tracking-wide shrink-0 border-b flex items-center justify-between ${
+        isDark ? 'border-[#1e1f20] text-[#c4c7c5]' : 'border-[#f1f3f4] text-[#5f6368]'
+      }`}>
+        {splitMode === 'evenly' && (
+          <div>
+            Split evenly • <span className={isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'}>{selectedIds.length}</span> of {activeMembers.length} selected
+          </div>
+        )}
+
+        {splitMode === 'amounts' && (
+          <div className="flex items-center justify-between w-full">
+            <span>Split by amounts</span>
+            <div className="flex items-center gap-2">
+              {Math.abs(amountsDiff) < 1 ? (
+                <span className="text-[#34a853] font-mono text-[11px] font-bold">✓ Matches ₹{totalAmount}</span>
+              ) : amountsDiff > 0 ? (
+                <span className="text-[#fbbc04] font-mono text-[11px] font-bold">₹{amountsDiff.toFixed(2)} left</span>
+              ) : (
+                <span className="text-[#ea4335] font-mono text-[11px] font-bold">₹{Math.abs(amountsDiff).toFixed(2)} over</span>
+              )}
+              {Math.abs(amountsDiff) >= 1 && (
+                <button
+                  type="button"
+                  onClick={autoDistributeAmounts}
+                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    isDark ? 'border-[#333538] hover:bg-[#282a2d] text-[#a8c7fa]' : 'border-[#dadce0] hover:bg-[#e8eaed] text-[#1a73e8]'
+                  }`}
+                >
+                  Auto-fill
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {splitMode === 'shares' && (
+          <div className="flex items-center justify-between w-full">
+            <span>Split by shares</span>
+            <span className={`font-mono text-[11px] font-bold ${totalSharesCount > 0 ? 'text-[#34a853]' : 'text-[#ea4335]'}`}>
+              {totalSharesCount} total {totalSharesCount === 1 ? 'share' : 'shares'}
+            </span>
+          </div>
+        )}
+
+        {splitMode === 'percentage' && (
+          <div className="flex items-center justify-between w-full">
+            <span>Split by percentage</span>
+            <div className="flex items-center gap-2">
+              {Math.abs(pctDiff) < 1 ? (
+                <span className="text-[#34a853] font-mono text-[11px] font-bold">✓ 100% total</span>
+              ) : (
+                <span className="text-[#fbbc04] font-mono text-[11px] font-bold">{allocatedPctSum}% / 100%</span>
+              )}
+              {Math.abs(pctDiff) >= 1 && (
+                <button
+                  type="button"
+                  onClick={autoDistributePercentages}
+                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    isDark ? 'border-[#333538] hover:bg-[#282a2d] text-[#a8c7fa]' : 'border-[#dadce0] hover:bg-[#e8eaed] text-[#1a73e8]'
+                  }`}
+                >
+                  Auto-fill
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 5. MEMBERS LIST */}
@@ -539,7 +707,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
       <div className={`p-4 border-t shrink-0 ${isDark ? 'bg-[#000000] border-[#1e1f20]' : 'bg-[#ffffff] border-[#e8eaed]'}`}>
         <button
           onClick={handleSendRequest}
-          disabled={isSubmitting || totalAmount <= 0}
+          disabled={isSubmitting || !isFormValid}
           className={`w-full py-3.5 rounded-full font-medium text-sm tracking-wide shadow-md transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 ${
             isDark
               ? 'bg-[#a8c7fa] hover:bg-[#b8d4ff] text-[#041e49]'
@@ -548,6 +716,22 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
         >
           {isSubmitting ? (
             <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : !isFormValid ? (
+            <span>
+              {totalAmount <= 0
+                ? 'Enter an amount'
+                : selectedIds.length === 0
+                ? 'Select members'
+                : splitMode === 'amounts' && amountsDiff > 0
+                ? `Allocate remaining ₹${amountsDiff.toFixed(2)}`
+                : splitMode === 'amounts' && amountsDiff < 0
+                ? `Exceeds total by ₹${Math.abs(amountsDiff).toFixed(2)}`
+                : splitMode === 'percentage' && Math.abs(pctDiff) >= 1
+                ? `Percentages must total 100% (${allocatedPctSum}%)`
+                : splitMode === 'shares' && totalSharesCount <= 0
+                ? 'Assign at least 1 share'
+                : 'Complete details to send'}
+            </span>
           ) : (
             <span>Send request (₹{totalAmount.toLocaleString('en-IN')})</span>
           )}
