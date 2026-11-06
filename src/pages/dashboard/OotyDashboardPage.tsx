@@ -20,7 +20,6 @@ import {
 import { GPaySplitExpenseModal } from '../../components/ooty/GPaySplitExpenseModal';
 import { GPaySettleUpModal } from '../../components/ooty/GPaySettleUpModal';
 import {
-  ArrowLeft,
   MoreVertical,
   Share2,
   Download,
@@ -310,16 +309,8 @@ export const OotyDashboardPage: React.FC = () => {
       {/* 1. TOP APP BAR (Exact Google Pay Group Header) */}
       <header className="sticky top-0 z-40 bg-[#000000]/95 backdrop-blur-md px-4 pt-3 pb-0 border-b border-[#1e1f20]">
         <div className="flex items-center justify-between pb-2">
-          {/* Left: Back & Group Title with Avatar cluster */}
+          {/* Left: Group Title with Avatar cluster */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleLogout}
-              className="p-1 -ml-1 text-[#c4c7c5] hover:text-white"
-              title="Logout and switch user"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-
             {/* Google Pay Style 4-avatar cluster */}
             <div className="w-10 h-10 rounded-full bg-[#1e1f20] border border-[#333538] grid grid-cols-2 gap-0.5 p-0.5 overflow-hidden shrink-0">
               {members.slice(0, 4).map((m) => (
