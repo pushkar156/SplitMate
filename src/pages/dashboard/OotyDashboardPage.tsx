@@ -222,12 +222,12 @@ export const OotyDashboardPage: React.FC = () => {
   const handleDeleteClick = (e: React.MouseEvent, exp: OotyExpense) => {
     e.stopPropagation();
     const canDelete =
-      currentUserId === 'pushkar' ||
+      (currentUserId === 'pushkar' && isAdminMode) ||
       exp.paidBy === currentUserId ||
       exp.createdBy === currentUserId;
 
     if (!canDelete) {
-      toast.error('Only the payer or trip coordinator can delete this expense 🛡️');
+      toast.error('Only the payer or admin can delete this expense 🛡️');
       return;
     }
     setDeleteTarget(exp);
@@ -731,7 +731,7 @@ export const OotyDashboardPage: React.FC = () => {
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
-                              {(currentUserId === 'pushkar' || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
+                              {((currentUserId === 'pushkar' && isAdminMode) || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
                                 <button
                                   type="button"
                                   onClick={(e) => handleDeleteClick(e, exp)}
@@ -846,7 +846,7 @@ export const OotyDashboardPage: React.FC = () => {
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
-                            {(currentUserId === 'pushkar' || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
+                            {((currentUserId === 'pushkar' && isAdminMode) || exp.paidBy === currentUserId || exp.createdBy === currentUserId) && (
                               <button
                                 type="button"
                                 onClick={(e) => handleDeleteClick(e, exp)}
@@ -977,6 +977,7 @@ export const OotyDashboardPage: React.FC = () => {
           selectedMemberForDetail ? (
             <GPayMemberExpensesView
               currentUserId={currentUserId}
+              isAdmin={currentUserId === 'pushkar' && isAdminMode}
               member={selectedMemberForDetail}
               expenses={expenses}
               settlements={settlements}
@@ -1424,6 +1425,7 @@ export const OotyDashboardPage: React.FC = () => {
         onClose={() => setSelectedExpenseForDetails(null)}
         expense={selectedExpenseForDetails}
         currentUserId={currentUserId}
+        isAdmin={currentUserId === 'pushkar' && isAdminMode}
         members={members}
         settlements={settlements}
         onPay={(toId, amount) => {
@@ -1473,7 +1475,7 @@ export const OotyDashboardPage: React.FC = () => {
                 expenses.map((e) => {
                   const payer = members.find((m) => m.id === e.paidBy);
                   const canDelete =
-                    currentUserId === 'pushkar' ||
+                    (currentUserId === 'pushkar' && isAdminMode) ||
                     e.paidBy === currentUserId ||
                     e.createdBy === currentUserId;
 

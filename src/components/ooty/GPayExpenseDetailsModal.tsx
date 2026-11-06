@@ -8,6 +8,7 @@ interface GPayExpenseDetailsModalProps {
   onClose: () => void;
   expense: OotyExpense | null;
   currentUserId: string;
+  isAdmin?: boolean;
   members: OotyMember[];
   settlements: OotySettlement[];
   onPay: (toId: string, amount: number) => void;
@@ -19,6 +20,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
   onClose,
   expense,
   currentUserId,
+  isAdmin = false,
   members,
   settlements,
   onPay,
@@ -93,7 +95,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
     );
 
   const canDelete =
-    currentUserId === 'pushkar' ||
+    (isAdmin && currentUserId === 'pushkar') ||
     expense.paidBy === currentUserId ||
     expense.createdBy === currentUserId;
 

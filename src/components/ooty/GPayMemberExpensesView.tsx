@@ -19,6 +19,7 @@ import {
 
 interface GPayMemberExpensesViewProps {
   currentUserId: string;
+  isAdmin?: boolean;
   member: OotyMember;
   expenses: OotyExpense[];
   settlements: OotySettlement[];
@@ -43,6 +44,7 @@ function formatGPayItemDate(isoString?: string): string {
 
 export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
   currentUserId,
+  isAdmin = false,
   member,
   expenses,
   settlements,
@@ -268,7 +270,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                     </div>
 
                     {onDeleteExpense &&
-                      (currentUserId === 'pushkar' ||
+                      ((isAdmin && currentUserId === 'pushkar') ||
                         item.originalExpense.paidBy === currentUserId ||
                         item.originalExpense.createdBy === currentUserId) && (
                         <button
