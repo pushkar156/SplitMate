@@ -39,11 +39,9 @@ export const AppLayout: React.FC = () => {
               <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                 <Receipt className="h-5 w-5 text-white" />
               </div>
-              <div>
+              <div className="flex items-center">
                 <span className="text-base font-bold tracking-tight text-foreground font-heading">SplitMate</span>
-                <span className="hidden sm:inline-block ml-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-primary-muted text-primary border border-primary/20">
-                  Retro
-                </span>
+                <span className="hidden sm:inline-block ml-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-primary-muted text-primary border border-primary/20">Retro</span>
               </div>
             </Link>
 
