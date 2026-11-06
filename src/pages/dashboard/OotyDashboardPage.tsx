@@ -11,6 +11,8 @@ import {
   calculateGPayBalancesForUser,
   calculateOotyBalances,
   simplifyOotyDebts,
+  roundToTwoDecimals,
+  formatCurrency,
 } from '../../types/ooty';
 import {
   subscribeToOotyData,
@@ -259,7 +261,7 @@ export const OotyDashboardPage: React.FC = () => {
   // WhatsApp Summary Generator
   const copyWhatsAppSummary = () => {
     let text = `🌲 *OOTY TRIP 2026 - EXPENSE SUMMARY* 🏔️\n\n`;
-    text += `💰 *Total Trip Spend:* ₹${totalTripSpending.toLocaleString('en-IN')}\n`;
+    text += `💰 *Total Trip Spend:* ₹${formatCurrency(totalTripSpending)}\n`;
     text += `👥 *Total Travelers:* ${members.length} Members\n\n`;
     text += `⚖️ *WHO OWES WHOM:*\n`;
 
@@ -267,7 +269,7 @@ export const OotyDashboardPage: React.FC = () => {
       text += `✨ Everyone is all settled up! No pending debts.\n`;
     } else {
       simplifiedDebts.forEach((debt, index) => {
-        text += `${index + 1}. *${debt.fromName}* owes *${debt.toName}*: ₹${debt.amount.toLocaleString('en-IN')}\n`;
+        text += `${index + 1}. *${debt.fromName}* owes *${debt.toName}*: ₹${formatCurrency(debt.amount)}\n`;
       });
     }
 
@@ -317,15 +319,15 @@ export const OotyDashboardPage: React.FC = () => {
   // Helper to calculate payment progress for an expense card (supports custom splits)
   const getExpenseProgress = (exp: OotyExpense) => {
     const totalInvolved = exp.splitWith.length || 1;
-    const defaultShare = exp.amount / totalInvolved;
+    const defaultShare = roundToTwoDecimals(exp.amount / totalInvolved);
     const isPayer = exp.paidBy === currentUserId;
     const userInvolved = exp.splitWith.includes(currentUserId);
-    const userShare = userInvolved ? (exp.splitDetails?.[currentUserId] ?? defaultShare) : 0;
+    const userShare = userInvolved ? roundToTwoDecimals(exp.splitDetails?.[currentUserId] ?? defaultShare) : 0;
 
     let paidCount = 1; // Payer is automatically paid
     exp.splitWith.forEach((mId) => {
       if (mId === exp.paidBy) return;
-      const mShare = exp.splitDetails?.[mId] ?? defaultShare;
+      const mShare = roundToTwoDecimals(exp.splitDetails?.[mId] ?? defaultShare);
       const hasSettled = settlements.some(
         (s) => s.fromMemberId === mId && s.toMemberId === exp.paidBy && s.amount >= mShare * 0.95
       );
@@ -336,7 +338,7 @@ export const OotyDashboardPage: React.FC = () => {
       (s) => s.fromMemberId === currentUserId && s.toMemberId === exp.paidBy && s.amount >= userShare * 0.95
     );
 
-    const remainingAmount = Math.max(0, exp.amount - defaultShare * paidCount);
+    const remainingAmount = roundToTwoDecimals(Math.max(0, exp.amount - defaultShare * paidCount));
     const progressPercent = Math.min(100, Math.round((paidCount / totalInvolved) * 100));
 
     return {
@@ -674,7 +676,7 @@ export const OotyDashboardPage: React.FC = () => {
                             Requested for '{exp.title}'
                           </div>
                           <div className="text-3xl font-medium tracking-tight my-1 font-sans">
-                            ₹{Math.round(exp.amount).toLocaleString('en-IN')}
+                            ₹{formatCurrency(exp.amount)}
                           </div>
 
                           {/* Member Avatars */}
@@ -711,7 +713,7 @@ export const OotyDashboardPage: React.FC = () => {
                             </div>
                             <span className={`text-xs shrink-0 font-medium ${isDark ? 'text-[#c4c7c5]' : 'text-[#1a73e8]'}`}>
                               {prog.remainingAmount > 0
-                                ? `₹${Math.round(prog.remainingAmount).toLocaleString('en-IN')} left`
+                                ? `₹${formatCurrency(prog.remainingAmount)} left`
                                 : 'All paid'}
                             </span>
                           </div>
@@ -789,7 +791,7 @@ export const OotyDashboardPage: React.FC = () => {
                             : `Split request • ${exp.title}`}
                         </div>
                         <div className="text-3xl font-medium tracking-tight my-1 font-sans">
-                          ₹{Math.round(canViewDetails && prog.userShare > 0 ? prog.userShare : exp.amount).toLocaleString('en-IN')}
+                          ₹{formatCurrency(canViewDetails && prog.userShare > 0 ? prog.userShare : exp.amount)}
                         </div>
 
                         {/* Avatars */}
@@ -867,13 +869,13 @@ export const OotyDashboardPage: React.FC = () => {
                               setSettlePrefill({
                                 fromId: currentUserId,
                                 toId: exp.paidBy,
-                                amount: Math.round(prog.userShare),
+                                amount: roundToTwoDecimals(prog.userShare),
                               });
                               setIsSettleUpOpen(true);
                             }}
                             className="w-full mt-3.5 py-2.5 rounded-full bg-[#0b57d0] hover:bg-[#1a73e8] text-white font-medium text-sm transition-colors text-center active:scale-[0.98] shadow-sm"
                           >
-                            Pay
+                            Pay ₹{formatCurrency(prog.userShare)}
                           </button>
                         )}
                       </div>
@@ -898,7 +900,7 @@ export const OotyDashboardPage: React.FC = () => {
                       >
                         <CheckCircle2 className="w-4 h-4 text-[#34a853] shrink-0" />
                         <span>
-                          <strong className="font-semibold text-current">{fromName}</strong> paid ₹{Math.round(set.amount).toLocaleString('en-IN')} to{' '}
+                          <strong className="font-semibold text-current">{fromName}</strong> paid ₹{formatCurrency(set.amount)} to{' '}
                           <strong className="font-semibold text-current">{toName}</strong>
                         </span>
                         <span className={`text-[11px] ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>
@@ -983,7 +985,7 @@ export const OotyDashboardPage: React.FC = () => {
                 setSettlePrefill({
                   fromId: currentUserId,
                   toId: toId,
-                  amount: Math.round(amount),
+                  amount: roundToTwoDecimals(amount),
                 });
                 setIsSettleUpOpen(true);
               }}
@@ -1169,7 +1171,7 @@ export const OotyDashboardPage: React.FC = () => {
                 <div>
                   <div className={`text-xs ${isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'}`}>Total Ooty Trip Cost</div>
                   <div className="text-3xl font-medium tracking-tight mt-1 font-sans">
-                    ₹{totalTripSpending.toLocaleString('en-IN')}
+                    ₹{formatCurrency(totalTripSpending)}
                   </div>
                 </div>
                 <div className="text-right">
@@ -1179,7 +1181,7 @@ export const OotyDashboardPage: React.FC = () => {
                       isDark ? 'text-[#a8c7fa]' : 'text-[#1a73e8]'
                     }`}
                   >
-                    ₹{(totalTripSpending / 13).toFixed(2)}
+                    ₹{formatCurrency(totalTripSpending / 13)}
                   </div>
                 </div>
               </div>
@@ -1218,7 +1220,7 @@ export const OotyDashboardPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-medium">
-                          ₹{debt.amount.toLocaleString('en-IN')}
+                          ₹{formatCurrency(debt.amount)}
                         </span>
                         {(debt.from === currentUserId || debt.to === currentUserId || (currentUserId === 'pushkar' && isAdminMode)) && (
                           <button
@@ -1226,7 +1228,7 @@ export const OotyDashboardPage: React.FC = () => {
                               setSettlePrefill({
                                 fromId: debt.from,
                                 toId: debt.to,
-                                amount: debt.amount,
+                                amount: roundToTwoDecimals(debt.amount),
                               });
                               setIsSettleUpOpen(true);
                             }}
@@ -1273,18 +1275,18 @@ export const OotyDashboardPage: React.FC = () => {
                       </div>
                       <div
                         className={`font-mono font-medium ${
-                          net > 0.5
+                          net > 0.005
                             ? isDark
                               ? 'text-[#34a853]'
                               : 'text-[#137333]'
-                            : net < -0.5
+                            : net < -0.005
                             ? 'text-[#ea4335]'
                             : isDark
                             ? 'text-[#8e918f]'
                             : 'text-[#5f6368]'
                         }`}
                       >
-                        {net > 0.5 ? `+₹${net.toFixed(2)}` : net < -0.5 ? `-₹${Math.abs(net).toFixed(2)}` : '₹0.00'}
+                        {net > 0.005 ? `+₹${formatCurrency(net)}` : net < -0.005 ? `-₹${formatCurrency(Math.abs(net))}` : '₹0.00'}
                       </div>
                     </div>
                   );
@@ -1428,7 +1430,7 @@ export const OotyDashboardPage: React.FC = () => {
           setSettlePrefill({
             fromId: currentUserId,
             toId: toId,
-            amount: Math.round(amount),
+            amount: roundToTwoDecimals(amount),
           });
           setIsSettleUpOpen(true);
         }}

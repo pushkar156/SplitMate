@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OotyMember, OOTY_MEMBERS, PairwiseBalanceItem, SimplifiedDebt } from '../../types/ooty';
+import { OotyMember, OOTY_MEMBERS, PairwiseBalanceItem, SimplifiedDebt, roundToTwoDecimals, formatCurrency } from '../../types/ooty';
 import { addOotySettlement } from '../../services/ootyDataService';
 import { useTheme } from '../../context/ThemeContext';
 import { ArrowLeft, ArrowRight, MoreVertical, CheckCircle2 } from 'lucide-react';
@@ -50,7 +50,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
 
       if (defaultToId) {
         setToId(defaultToId);
-        setAmountStr(defaultAmount ? defaultAmount.toString() : '');
+        setAmountStr(defaultAmount ? roundToTwoDecimals(defaultAmount).toFixed(2) : '');
         setStep('confirm');
       } else {
         setToId('');
@@ -65,19 +65,19 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
   if (!isOpen) return null;
 
   // Filter list of members the current user actually owes money to
-  const settlingList = owedByYouList.filter((item) => item.amount > 0);
+  const settlingList = owedByYouList.filter((item) => item.amount > 0.005);
 
   const handleSelectMember = (memberId: string, amount: number) => {
     setFromId(currentUserId);
     setToId(memberId);
-    setAmountStr(amount.toFixed(2));
+    setAmountStr(roundToTwoDecimals(amount).toFixed(2));
     setStep('confirm');
   };
 
   const handleSelectDebt = (debt: SimplifiedDebt) => {
     setFromId(debt.from);
     setToId(debt.to);
-    setAmountStr(debt.amount.toFixed(2));
+    setAmountStr(roundToTwoDecimals(debt.amount).toFixed(2));
     setStep('confirm');
   };
 
@@ -103,7 +103,8 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
       return;
     }
 
-    if (numAmount <= 0) {
+    const cleanAmount = roundToTwoDecimals(numAmount);
+    if (cleanAmount <= 0) {
       toast.error('Please enter a valid payment amount');
       return;
     }
@@ -113,14 +114,14 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
       await addOotySettlement({
         fromMemberId: fromId,
         toMemberId: toId,
-        amount: numAmount,
+        amount: cleanAmount,
         date: new Date().toISOString().split('T')[0],
         note: note.trim() || 'Settlement',
       });
 
       const fromName = fromMember?.id === currentUserId ? 'You' : (fromMember?.name || fromId);
       const toName = toMember?.id === currentUserId ? 'You' : (toMember?.name || toId);
-      toast.success(`Settled: ${fromName} paid ₹${numAmount.toLocaleString('en-IN')} to ${toName}! 🤝`);
+      toast.success(`Settled: ${fromName} paid ₹${formatCurrency(cleanAmount)} to ${toName}! 🤝`);
       onClose();
     } catch (err: any) {
       toast.error('Failed to record settlement: ' + (err?.message || 'Error'));
@@ -481,7 +482,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
               {isSubmitting ? (
                 <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : (
-                <span>Record payment (₹{numAmount.toLocaleString('en-IN')})</span>
+                <span>Record payment (₹{formatCurrency(numAmount)})</span>
               )}
             </button>
           </div>

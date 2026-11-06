@@ -8,6 +8,8 @@ import {
   OotyExpense,
   OotySettlement,
   getGPayPairwiseDetails,
+  roundToTwoDecimals,
+  formatCurrency,
 } from '../../types/ooty';
 
 describe('Ooty Trip 13 Members & Engine', () => {
@@ -275,6 +277,30 @@ describe('Ooty Trip 13 Members & Engine', () => {
     expect(afterDetails.paidExpenses).toHaveLength(4);
     expect(afterDetails.settlements).toHaveLength(1);
     expect(afterDetails.settlements[0].amount).toBe(47.5);
+  });
+
+  describe('Currency & Float Rounding (2 decimal places & recursive rounding up)', () => {
+    it('rounds recursive fractions up to 2 decimal places (e.g. .333333 -> .34)', () => {
+      expect(roundToTwoDecimals(0.333333)).toBe(0.34);
+      expect(roundToTwoDecimals(1 / 3)).toBe(0.34);
+      expect(roundToTwoDecimals(100 / 3)).toBe(33.34);
+      expect(roundToTwoDecimals(500 / 13)).toBe(38.47);
+    });
+
+    it('preserves exact 2 decimal values without unintended rounding', () => {
+      expect(roundToTwoDecimals(38.46)).toBe(38.46);
+      expect(roundToTwoDecimals(50.0)).toBe(50.0);
+      expect(roundToTwoDecimals(0)).toBe(0);
+      expect(roundToTwoDecimals(114.2)).toBe(114.2);
+    });
+
+    it('formats strictly to 2 decimal places with formatCurrency', () => {
+      expect(formatCurrency(0.333333)).toBe('0.34');
+      expect(formatCurrency(38.46)).toBe('38.46');
+      expect(formatCurrency(500)).toBe('500.00');
+      expect(formatCurrency(0)).toBe('0.00');
+      expect(formatCurrency(12500.5)).toBe('12,500.50');
+    });
   });
 });
 

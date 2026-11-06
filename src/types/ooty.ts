@@ -142,6 +142,36 @@ export interface GPayPairwiseDetails {
 }
 
 /**
+ * Rounds a number to 2 decimal places.
+ * If there are fractional or recurring decimals beyond the 2nd decimal place (e.g. 0.333333...),
+ * it rounds up (ceiling) to 2 decimal places (e.g. 0.333333 -> 0.34, 38.4615 -> 38.47).
+ * Floating-point representation noise (e.g. 38.460000000000005) is cleaned before checking.
+ */
+export function roundToTwoDecimals(val: number): number {
+  if (isNaN(val) || !isFinite(val)) return 0;
+  if (val < 0) return -roundToTwoDecimals(-val);
+  const clean = Math.round(val * 1000000) / 1000000;
+  const scaled = clean * 100;
+  const integerPart = Math.floor(scaled);
+  const fraction = scaled - integerPart;
+  if (fraction > 1e-5) {
+    return (integerPart + 1) / 100;
+  }
+  return integerPart / 100;
+}
+
+/**
+ * Formats a number to Indian currency format with strictly 2 decimal places (e.g. "38.46", "500.00").
+ */
+export function formatCurrency(val: number): string {
+  const rounded = roundToTwoDecimals(val);
+  return rounded.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
  * Calculates complete pairwise breakdown between the current user and another member:
  * returns exact unpaid expenses, paid expenses, and settlements.
  */
@@ -157,7 +187,7 @@ export function getGPayPairwiseDetails(
   for (const exp of expenses) {
     if (!exp.amount || exp.amount <= 0 || !exp.splitWith || exp.splitWith.length === 0) continue;
     const splitCount = exp.splitWith.length;
-    const defaultShare = exp.amount / splitCount;
+    const defaultShare = roundToTwoDecimals(exp.amount / splitCount);
 
     const youPaid = exp.paidBy === currentUserId;
     const otherPaid = exp.paidBy === otherMember.id;
@@ -166,14 +196,15 @@ export function getGPayPairwiseDetails(
 
     if (youPaid && otherIn) {
       // You paid, other owes you their share
-      const share = exp.splitDetails?.[otherMember.id] ?? defaultShare;
+      const rawShare = exp.splitDetails?.[otherMember.id] ?? defaultShare;
+      const share = roundToTwoDecimals(rawShare);
       pairwiseExpenses.push({
         id: `${exp.id}_${otherMember.id}`,
         expenseId: exp.id,
         title: exp.title,
         date: exp.date,
         createdAt: exp.createdAt || exp.date,
-        share: Math.round(share * 100) / 100,
+        share,
         isRequestedByYou: true,
         isPaid: false,
         category: exp.category,
@@ -181,14 +212,15 @@ export function getGPayPairwiseDetails(
       });
     } else if (otherPaid && youIn) {
       // Other paid, you owe other your share
-      const share = exp.splitDetails?.[currentUserId] ?? defaultShare;
+      const rawShare = exp.splitDetails?.[currentUserId] ?? defaultShare;
+      const share = roundToTwoDecimals(rawShare);
       pairwiseExpenses.push({
         id: `${exp.id}_${currentUserId}`,
         expenseId: exp.id,
         title: exp.title,
         date: exp.date,
         createdAt: exp.createdAt || exp.date,
-        share: Math.round(share * 100) / 100,
+        share,
         isRequestedByYou: false,
         isPaid: false,
         category: exp.category,
@@ -241,12 +273,12 @@ export function getGPayPairwiseDetails(
 
   const netBalance =
     totalOtherOwesYou - settlementsOtherPaid - (totalYouOweOther - settlementsYouPaid);
-  const roundedNet = Math.round(netBalance * 100) / 100;
+  const roundedNet = roundToTwoDecimals(netBalance);
 
   let statusText = `Settled up with ${otherMember.name}`;
-  if (roundedNet < -0.5) {
+  if (roundedNet < -0.005) {
     statusText = `You owe ${otherMember.name}`;
-  } else if (roundedNet > 0.5) {
+  } else if (roundedNet > 0.005) {
     statusText = `${otherMember.name} owes you`;
   }
 
@@ -258,7 +290,7 @@ export function getGPayPairwiseDetails(
   const unpaidExpenses: PairwiseExpenseRecord[] = [];
   const paidExpenses: PairwiseExpenseRecord[] = [];
 
-  if (Math.abs(roundedNet) <= 0.5) {
+  if (Math.abs(roundedNet) <= 0.005) {
     // Fully settled up: all expenses are paid
     for (const item of chronological) {
       paidExpenses.push({ ...item, isPaid: true });
@@ -333,10 +365,10 @@ export function calculateGPayBalancesForUser(
       totalExpenseCount: details.unpaidExpenses.length + details.paidExpenses.length,
     };
 
-    if (details.roundedNet < -0.5) {
+    if (details.roundedNet < -0.005) {
       owedByYouTotal += Math.abs(details.roundedNet);
       owedByYouList.push(item);
-    } else if (details.roundedNet > 0.5) {
+    } else if (details.roundedNet > 0.005) {
       owedToYouTotal += details.roundedNet;
       owedToYouList.push(item);
     } else {
@@ -345,8 +377,8 @@ export function calculateGPayBalancesForUser(
   }
 
   return {
-    owedByYouTotal: Math.round(owedByYouTotal * 100) / 100,
-    owedToYouTotal: Math.round(owedToYouTotal * 100) / 100,
+    owedByYouTotal: roundToTwoDecimals(owedByYouTotal),
+    owedToYouTotal: roundToTwoDecimals(owedToYouTotal),
     owedByYouList,
     owedToYouList,
     settledList,
@@ -389,10 +421,10 @@ export function calculateOotyBalances(
     }
 
     // Debit the participants (supports unequal/custom splits)
-    const defaultShare = exp.amount / splitCount;
+    const defaultShare = roundToTwoDecimals(exp.amount / splitCount);
     for (const participantId of exp.splitWith) {
       if (summaries[participantId]) {
-        const participantShare = exp.splitDetails?.[participantId] ?? defaultShare;
+        const participantShare = roundToTwoDecimals(exp.splitDetails?.[participantId] ?? defaultShare);
         summaries[participantId].totalShare += participantShare;
       }
     }
@@ -402,10 +434,10 @@ export function calculateOotyBalances(
   for (const set of settlements) {
     if (!set.amount || set.amount <= 0) continue;
     if (summaries[set.fromMemberId]) {
-      summaries[set.fromMemberId].settlementsPaid += set.amount;
+      summaries[set.fromMemberId].settlementsPaid += roundToTwoDecimals(set.amount);
     }
     if (summaries[set.toMemberId]) {
-      summaries[set.toMemberId].settlementsReceived += set.amount;
+      summaries[set.toMemberId].settlementsReceived += roundToTwoDecimals(set.amount);
     }
   }
 
@@ -413,10 +445,13 @@ export function calculateOotyBalances(
   // Net Balance = (Total Paid - Total Share) + Settlements Paid - Settlements Received
   for (const m of members) {
     const s = summaries[m.id];
-    s.netBalance =
-      Math.round(
-        ((s.totalPaid - s.totalShare) + s.settlementsPaid - s.settlementsReceived) * 100
-      ) / 100;
+    s.totalPaid = roundToTwoDecimals(s.totalPaid);
+    s.totalShare = roundToTwoDecimals(s.totalShare);
+    s.settlementsPaid = roundToTwoDecimals(s.settlementsPaid);
+    s.settlementsReceived = roundToTwoDecimals(s.settlementsReceived);
+    s.netBalance = roundToTwoDecimals(
+      (s.totalPaid - s.totalShare) + s.settlementsPaid - s.settlementsReceived
+    );
   }
 
   return summaries;
@@ -439,10 +474,10 @@ export function simplifyOotyDebts(
 
   for (const s of Object.values(balances)) {
     // Round to avoid floating point issues
-    const bal = Math.round(s.netBalance * 100) / 100;
-    if (bal < -0.5) {
+    const bal = roundToTwoDecimals(s.netBalance);
+    if (bal < -0.005) {
       debtors.push({ id: s.memberId, name: s.name, balance: -bal }); // positive amount owed
-    } else if (bal > 0.5) {
+    } else if (bal > 0.005) {
       creditors.push({ id: s.memberId, name: s.name, balance: bal });
     }
   }
@@ -459,9 +494,9 @@ export function simplifyOotyDebts(
     const creditor = creditors[cIdx];
 
     const settleAmount = Math.min(debtor.balance, creditor.balance);
-    const roundedAmount = Math.round(settleAmount);
+    const roundedAmount = roundToTwoDecimals(settleAmount);
 
-    if (roundedAmount > 0) {
+    if (roundedAmount > 0.005) {
       simplified.push({
         from: debtor.id,
         fromName: debtor.name,
@@ -471,11 +506,11 @@ export function simplifyOotyDebts(
       });
     }
 
-    debtor.balance -= settleAmount;
-    creditor.balance -= settleAmount;
+    debtor.balance = roundToTwoDecimals(debtor.balance - settleAmount);
+    creditor.balance = roundToTwoDecimals(creditor.balance - settleAmount);
 
-    if (debtor.balance < 0.5) dIdx++;
-    if (creditor.balance < 0.5) cIdx++;
+    if (debtor.balance < 0.005) dIdx++;
+    if (creditor.balance < 0.005) cIdx++;
   }
 
   return simplified;

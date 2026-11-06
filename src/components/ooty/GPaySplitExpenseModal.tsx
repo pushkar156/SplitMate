@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   OotyMember,
   OOTY_MEMBERS,
+  roundToTwoDecimals,
+  formatCurrency,
 } from '../../types/ooty';
 import { addOotyExpense } from '../../services/ootyDataService';
 import { useTheme } from '../../context/ThemeContext';
@@ -87,7 +89,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
 
   // Calculations per mode:
   const evenCount = selectedIds.length;
-  const evenPerPerson = evenCount > 0 ? totalAmount / evenCount : 0;
+  const evenPerPerson = evenCount > 0 ? roundToTwoDecimals(totalAmount / evenCount) : 0;
 
   const totalSharesCount = Object.entries(customShares)
     .filter(([id]) => selectedIds.includes(id))
@@ -209,7 +211,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
       splitDetails = {};
       selectedIds.forEach((id) => {
         const sh = customShares[id] ?? 1;
-        splitDetails![id] = Math.round(((totalAmount * sh) / totalSharesCount) * 100) / 100;
+        splitDetails![id] = roundToTwoDecimals((totalAmount * sh) / totalSharesCount);
       });
     } else if (splitMode === 'percentage') {
       if (Math.abs(pctDiff) >= 1) {
@@ -219,7 +221,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
       splitDetails = {};
       selectedIds.forEach((id) => {
         const pct = parseFloat(customPercentages[id] || '0') || 0;
-        splitDetails![id] = Math.round(((totalAmount * pct) / 100) * 100) / 100;
+        splitDetails![id] = roundToTwoDecimals((totalAmount * pct) / 100);
       });
     }
 
@@ -610,7 +612,7 @@ export const GPaySplitExpenseModal: React.FC<GPaySplitExpenseModalProps> = ({
               {/* Right Side: Depending on Split Mode */}
               {splitMode === 'evenly' && (
                 <div className="text-right font-mono text-sm font-medium text-current shrink-0">
-                  {isSelected ? `₹${evenPerPerson.toFixed(2)}` : '₹0.00'}
+                  {isSelected ? `₹${formatCurrency(evenPerPerson)}` : '₹0.00'}
                 </div>
               )}
 

@@ -4,6 +4,8 @@ import {
   OotyExpense,
   OotySettlement,
   getGPayPairwiseDetails,
+  roundToTwoDecimals,
+  formatCurrency,
 } from '../../types/ooty';
 import { useTheme } from '../../context/ThemeContext';
 import {
@@ -57,9 +59,9 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
   // Compute pairwise details between current user and this member
   const details = getGPayPairwiseDetails(currentUserId, member, expenses, settlements);
 
-  const youOwe = details.roundedNet < -0.5;
-  const theyOwe = details.roundedNet > 0.5;
-  const netAmount = Math.abs(details.roundedNet);
+  const youOwe = details.roundedNet < -0.005;
+  const theyOwe = details.roundedNet > 0.005;
+  const netAmount = roundToTwoDecimals(Math.abs(details.roundedNet));
 
   return (
     <div
@@ -158,7 +160,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
               : 'text-[#1f1f1f]'
           }`}
         >
-          ₹{netAmount.toFixed(2)}
+          ₹{formatCurrency(netAmount)}
         </div>
       </div>
 
@@ -262,7 +264,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                           : 'text-[#1f1f1f]'
                       }`}
                     >
-                      ₹{item.share.toFixed(2)}
+                      ₹{formatCurrency(item.share)}
                     </div>
 
                     {onDeleteExpense &&
@@ -350,7 +352,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                         isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'
                       }`}
                     >
-                      ₹{item.share.toFixed(2)}
+                      ₹{formatCurrency(item.share)}
                     </div>
                   </div>
                 ))}
@@ -391,7 +393,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                         isDark ? 'text-[#81c995]' : 'text-[#188038]'
                       }`}
                     >
-                      ₹{s.amount.toFixed(2)}
+                      ₹{formatCurrency(s.amount)}
                     </div>
                   </div>
                 ))}
@@ -414,7 +416,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                   : 'bg-[#0b57d0] hover:bg-[#1a73e8] text-white'
               }`}
             >
-              Pay ₹{netAmount.toFixed(2)}
+              Pay ₹{formatCurrency(netAmount)}
             </button>
           ) : theyOwe ? (
             <button
@@ -426,7 +428,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                   : 'bg-[#0b57d0] hover:bg-[#1a73e8] text-white'
               }`}
             >
-              Settle up (₹{netAmount.toFixed(2)})
+              Settle up (₹{formatCurrency(netAmount)})
             </button>
           ) : (
             <button

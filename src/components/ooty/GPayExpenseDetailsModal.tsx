@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { OotyExpense, OotyMember, OotySettlement } from '../../types/ooty';
+import { OotyExpense, OotyMember, OotySettlement, roundToTwoDecimals, formatCurrency } from '../../types/ooty';
 import { useTheme } from '../../context/ThemeContext';
 import { ArrowLeft, MoreVertical, Trash2 } from 'lucide-react';
 
@@ -34,11 +34,11 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
   const isPayer = expense.paidBy === currentUserId;
 
   const totalInvolved = expense.splitWith.length || 1;
-  const defaultShare = expense.amount / totalInvolved;
+  const defaultShare = roundToTwoDecimals(expense.amount / totalInvolved);
 
   const userInvolved = expense.splitWith.includes(currentUserId);
   const userShare = userInvolved
-    ? (expense.splitDetails?.[currentUserId] ?? defaultShare)
+    ? roundToTwoDecimals(expense.splitDetails?.[currentUserId] ?? defaultShare)
     : 0;
 
   // Track participants and paid status
@@ -49,7 +49,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
       name: mId,
       avatarColor: '#FF5B42',
     };
-    const share = expense.splitDetails?.[mId] ?? defaultShare;
+    const share = roundToTwoDecimals(expense.splitDetails?.[mId] ?? defaultShare);
     const isThisPayer = mId === expense.paidBy;
 
     // A participant is settled if they are the payer or have a recorded settlement
@@ -180,8 +180,8 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
           {/* Subtitle: {Payer} requested ₹{userShare} */}
           <div className="text-xl sm:text-2xl font-normal tracking-tight font-sans mt-3.5">
             {isPayer
-              ? `You requested ₹${Math.round(expense.amount).toLocaleString('en-IN')}`
-              : `${payerName} requested ₹${Math.round(userShare > 0 ? userShare : defaultShare).toLocaleString('en-IN')}`}
+              ? `You requested ₹${formatCurrency(expense.amount)}`
+              : `${payerName} requested ₹${formatCurrency(userShare > 0 ? userShare : defaultShare)}`}
           </div>
         </div>
 
@@ -198,7 +198,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
             {paidCount} of {totalInvolved} paid
           </div>
           <div className="font-medium">
-            Total: ₹{Math.round(expense.amount).toLocaleString('en-IN')}
+            Total: ₹{formatCurrency(expense.amount)}
           </div>
         </div>
 
@@ -254,7 +254,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
                   isDark ? 'text-white' : 'text-[#1f1f1f]'
                 }`}
               >
-                ₹{Math.round(p.share).toLocaleString('en-IN')}
+                ₹{formatCurrency(p.share)}
               </div>
             </div>
           ))}
@@ -267,7 +267,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
               <button
                 type="button"
                 onClick={() => {
-                  onPay(expense.paidBy, Math.round(userShare));
+                  onPay(expense.paidBy, roundToTwoDecimals(userShare));
                   onClose();
                 }}
                 className={`w-full py-3.5 rounded-full font-medium text-sm transition-all active:scale-[0.98] shadow-lg ${
@@ -276,7 +276,7 @@ export const GPayExpenseDetailsModal: React.FC<GPayExpenseDetailsModalProps> = (
                     : 'bg-[#0b57d0] hover:bg-[#1a73e8] text-white'
                 }`}
               >
-                Pay ₹{Math.round(userShare).toLocaleString('en-IN')}
+                Pay ₹{formatCurrency(userShare)}
               </button>
             ) : userInvolved && isUserPaid && !isPayer ? (
               <div
