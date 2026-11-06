@@ -1,14 +1,23 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile } from '../types';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { isFirebaseConfigured, auth, db, googleProvider } from '../lib/firebase';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile,
+  User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { dataService } from '../services/dataService';
 import { DEMO_USERS } from '../services/mockData';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  isLiveSupabase: boolean;
+  isLiveFirebase: boolean;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -22,102 +31,74 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const isLiveSupabase = isSupabaseConfigured();
+  const isLiveFirebase = isFirebaseConfigured();
 
-  const fetchSupabaseProfile = async (sessionUser: SupabaseUser) => {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', sessionUser.id)
-        .maybeSingle();
+  const syncFirestoreUserProfile = async (fbUser: FirebaseUser) => {
+    const profile: UserProfile = {
+      id: fbUser.uid,
+      fullName: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+      email: fbUser.email || undefined,
+      avatarUrl: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.displayName || 'User')}`,
+    };
 
-      if (!error && data) {
-        setUser({
-          id: data.id,
-          fullName: data.full_name || sessionUser.user_metadata?.full_name || sessionUser.user_metadata?.name || 'User',
-          avatarUrl: data.avatar_url || sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
-          email: sessionUser.email,
-        });
-      } else {
-        // Fallback for new Google OAuth user before/during trigger sync
-        setUser({
-          id: sessionUser.id,
-          fullName:
-            sessionUser.user_metadata?.full_name ||
-            sessionUser.user_metadata?.name ||
-            sessionUser.email?.split('@')[0] ||
-            'User',
-          avatarUrl:
-            sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
-          email: sessionUser.email,
-        });
+    if (db) {
+      try {
+        const userRef = doc(db, 'users', fbUser.uid);
+        const userDoc = await getDoc(userRef);
 
-        // Ensure profile row exists in case trigger hasn't fired yet
-        await supabase.from('profiles').upsert({
-          id: sessionUser.id,
-          full_name:
-            sessionUser.user_metadata?.full_name ||
-            sessionUser.user_metadata?.name ||
-            sessionUser.email?.split('@')[0] ||
-            'User',
-          avatar_url:
-            sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
-        });
+        if (!userDoc.exists()) {
+          await setDoc(userRef, {
+            fullName: profile.fullName,
+            email: profile.email || '',
+            avatarUrl: profile.avatarUrl || null,
+            createdAt: new Date().toISOString(),
+          });
+        } else {
+          const data = userDoc.data();
+          profile.fullName = data.fullName || profile.fullName;
+          profile.avatarUrl = data.avatarUrl || profile.avatarUrl;
+        }
+      } catch (err) {
+        console.warn('Firestore profile sync error (using local profile):', err);
       }
-    } catch (err) {
-      console.error('Failed to load profile:', err);
-      // Fallback
-      setUser({
-        id: sessionUser.id,
-        fullName: sessionUser.user_metadata?.full_name || sessionUser.email?.split('@')[0] || 'User',
-        avatarUrl: sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture,
-        email: sessionUser.email,
-      });
-    } finally {
-      setLoading(false);
     }
+
+    dataService.setCurrentUser(profile);
+    setUser(profile);
+    setLoading(false);
   };
 
   useEffect(() => {
-    if (isLiveSupabase && supabase) {
-      // Real Supabase session initialization
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          fetchSupabaseProfile(session.user);
+    if (isLiveFirebase && auth) {
+      const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+        if (fbUser) {
+          await syncFirestoreUserProfile(fbUser);
         } else {
           setUser(null);
           setLoading(false);
         }
       });
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
-          fetchSupabaseProfile(session.user);
-        } else {
-          setUser(null);
-          setLoading(false);
-        }
-      });
-
-      return () => {
-        subscription.unsubscribe();
-      };
+      return () => unsubscribe();
     } else {
       // Local demo mode: initialize from dataService
       setUser(dataService.getCurrentUser());
       setLoading(false);
     }
-  }, [isLiveSupabase]);
+  }, [isLiveFirebase]);
 
   const signInWithEmail = async (email: string, password: string): Promise<{ error: Error | null }> => {
-    if (isLiveSupabase && supabase) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return { error: error ? new Error(error.message) : null };
+    if (isLiveFirebase && auth) {
+      try {
+        const res = await signInWithEmailAndPassword(auth, email, password);
+        await syncFirestoreUserProfile(res.user);
+        return { error: null };
+      } catch (err: unknown) {
+        return { error: err instanceof Error ? err : new Error(String(err)) };
+      }
     }
 
-    // In demo mode: find user with matching email or log in as first user
+    // Demo mode fallback
     const found = DEMO_USERS.find((u) => u.email?.toLowerCase() === email.toLowerCase()) || DEMO_USERS[0];
     dataService.setCurrentUser(found);
     setUser(found);
@@ -129,13 +110,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string,
     fullName: string
   ): Promise<{ error: Error | null }> => {
-    if (isLiveSupabase && supabase) {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      });
-      return { error: error ? new Error(error.message) : null };
+    if (isLiveFirebase && auth) {
+      try {
+        const res = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(res.user, { displayName: fullName });
+        await syncFirestoreUserProfile(res.user);
+        return { error: null };
+      } catch (err: unknown) {
+        return { error: err instanceof Error ? err : new Error(String(err)) };
+      }
     }
 
     const newUser: UserProfile = {
@@ -150,21 +133,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithGoogle = async (): Promise<{ error: Error | null }> => {
-    if (isLiveSupabase && supabase) {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-      return { error: error ? new Error(error.message) : null };
+    if (isLiveFirebase && auth) {
+      try {
+        const res = await signInWithPopup(auth, googleProvider);
+        await syncFirestoreUserProfile(res.user);
+        return { error: null };
+      } catch (err: unknown) {
+        return { error: err instanceof Error ? err : new Error(String(err)) };
+      }
     }
 
-    // If Supabase credentials are not in .env yet, simulate login as Google user in demo mode
+    // Demo mode: log in as Google Persona
     const demoGoogleUser: UserProfile = {
       id: `u-google-${Date.now()}`,
       fullName: 'Google User',
@@ -177,8 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    if (isLiveSupabase && supabase) {
-      await supabase.auth.signOut();
+    if (isLiveFirebase && auth) {
+      await firebaseSignOut(auth);
     }
     setUser(null);
   };
@@ -196,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
-        isLiveSupabase,
+        isLiveFirebase,
         signInWithEmail,
         signUpWithEmail,
         signInWithGoogle,

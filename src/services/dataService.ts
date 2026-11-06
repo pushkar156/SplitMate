@@ -9,7 +9,19 @@ import {
   CurrencyCode,
   GroupType,
 } from '../types';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { isFirebaseConfigured, db } from '../lib/firebase';
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  arrayUnion,
+} from 'firebase/firestore';
 import {
   DEMO_USERS,
   DEMO_CURRENT_USER,
@@ -34,7 +46,6 @@ class DataService {
   private currentUser: UserProfile;
 
   constructor() {
-    // Initialize from localStorage or fallback to defaults
     try {
       const storedUser = localStorage.getItem(STORAGE_KEY_CURRENT_USER);
       this.currentUser = storedUser ? JSON.parse(storedUser) : DEMO_CURRENT_USER;
@@ -87,27 +98,16 @@ class DataService {
 
   // --- Groups ---
   async getGroups(): Promise<Group[]> {
-    if (isSupabaseConfigured() && supabase) {
-      const { data, error } = await supabase
-        .from('groups')
-        .select(`
-          *,
-          members:group_members(
-            id,
-            group_id,
-            user_id,
-            role,
-            joined_at,
-            profile:profiles(*)
-          )
-        `)
-        .is('archived_at', null)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Supabase getGroups error:', error);
-      } else if (data) {
-        return data as unknown as Group[];
+    if (isFirebaseConfigured() && db) {
+      try {
+        const groupsRef = collection(db, 'groups');
+        const q = query(groupsRef, where('memberIds', 'array-contains', this.currentUser.id));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Group));
+        }
+      } catch (err) {
+        console.warn('Firestore getGroups fallback to local cache:', err);
       }
     }
 
@@ -115,6 +115,18 @@ class DataService {
   }
 
   async getGroupById(groupId: string): Promise<Group | null> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        const docRef = doc(db, 'groups', groupId);
+        const snapshot = await getDoc(docRef);
+        if (snapshot.exists()) {
+          return { id: snapshot.id, ...snapshot.data() } as Group;
+        }
+      } catch (err) {
+        console.warn('Firestore getGroupById fallback to local cache:', err);
+      }
+    }
+
     const groups = await this.getGroups();
     return groups.find((g) => g.id === groupId) || null;
   }
@@ -125,8 +137,9 @@ class DataService {
     groupType: GroupType;
     currency: CurrencyCode;
   }): Promise<Group> {
+    const groupId = `grp-${Date.now()}`;
     const newGroup: Group = {
-      id: `grp-${Date.now()}`,
+      id: groupId,
       name: data.name,
       description: data.description,
       groupType: data.groupType,
@@ -137,7 +150,7 @@ class DataService {
       members: [
         {
           id: `gm-${Date.now()}`,
-          groupId: `grp-${Date.now()}`,
+          groupId,
           userId: this.currentUser.id,
           role: 'admin',
           joinedAt: new Date().toISOString(),
@@ -146,27 +159,28 @@ class DataService {
       ],
     };
 
-    if (isSupabaseConfigured() && supabase) {
-      const { data: inserted, error } = await supabase
-        .from('groups')
-        .insert({
-          name: data.name,
-          description: data.description,
-          group_type: data.groupType,
-          currency: data.currency,
-          created_by: this.currentUser.id,
-        })
-        .select()
-        .single();
-
-      if (!error && inserted) {
-        // add admin membership
-        await supabase.from('group_members').insert({
-          group_id: inserted.id,
-          user_id: this.currentUser.id,
-          role: 'admin',
+    if (isFirebaseConfigured() && db) {
+      try {
+        await setDoc(doc(db, 'groups', groupId), {
+          ...newGroup,
+          memberIds: [this.currentUser.id],
         });
-        return inserted as unknown as Group;
+
+        await setDoc(doc(db, 'groups', groupId, 'activity', `act-${Date.now()}`), {
+          id: `act-${Date.now()}`,
+          groupId,
+          actorId: this.currentUser.id,
+          action: 'created_group',
+          entityType: 'group',
+          entityId: groupId,
+          metadata: { name: newGroup.name },
+          createdAt: new Date().toISOString(),
+          actorProfile: this.currentUser,
+        });
+
+        return newGroup;
+      } catch (err) {
+        console.warn('Firestore createGroup fallback:', err);
       }
     }
 
@@ -188,20 +202,18 @@ class DataService {
 
   // --- Expenses ---
   async getExpenses(groupId: string): Promise<Expense[]> {
-    if (isSupabaseConfigured() && supabase) {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select(`
-          *,
-          payers:expense_payers(*),
-          splits:expense_splits(*)
-        `)
-        .eq('group_id', groupId)
-        .is('deleted_at', null)
-        .order('expense_date', { ascending: false });
-
-      if (!error && data) {
-        return data as unknown as Expense[];
+    if (isFirebaseConfigured() && db) {
+      try {
+        const expRef = collection(db, 'groups', groupId, 'expenses');
+        const q = query(expRef, orderBy('expenseDate', 'desc'));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          return snapshot.docs
+            .map((d) => ({ id: d.id, ...d.data() } as Expense))
+            .filter((e) => !e.deletedAt);
+        }
+      } catch (err) {
+        console.warn('Firestore getExpenses fallback to local cache:', err);
       }
     }
 
@@ -221,8 +233,9 @@ class DataService {
     payers: { userId: string; paidAmountMinor: number }[];
     splits: { userId: string; shareAmountMinor: number; splitType: SplitMethod }[];
   }): Promise<Expense> {
+    const expenseId = `exp-${Date.now()}`;
     const newExpense: Expense = {
-      id: `exp-${Date.now()}`,
+      id: expenseId,
       groupId: data.groupId,
       title: data.title,
       description: data.description || '',
@@ -237,24 +250,25 @@ class DataService {
       splits: data.splits.map((s, idx) => ({ id: `s-${Date.now()}-${idx}`, ...s })),
     };
 
-    if (isSupabaseConfigured() && supabase) {
-      const { data: atomicResult, error } = await supabase.rpc('create_expense_atomic', {
-        p_group_id: data.groupId,
-        p_title: data.title,
-        p_description: data.description || '',
-        p_amount_minor: data.amountMinor,
-        p_currency: data.currency,
-        p_category: data.category,
-        p_expense_date: data.expenseDate,
-        p_created_by: this.currentUser.id,
-        p_receipt_url: null,
-        p_payers: data.payers,
-        p_splits: data.splits,
-      });
+    if (isFirebaseConfigured() && db) {
+      try {
+        await setDoc(doc(db, 'groups', data.groupId, 'expenses', expenseId), newExpense);
 
-      if (!error && atomicResult) {
-        newExpense.id = atomicResult;
+        await setDoc(doc(db, 'groups', data.groupId, 'activity', `act-${Date.now()}`), {
+          id: `act-${Date.now()}`,
+          groupId: data.groupId,
+          actorId: this.currentUser.id,
+          action: 'added_expense',
+          entityType: 'expense',
+          entityId: expenseId,
+          metadata: { title: newExpense.title, amountMinor: newExpense.amountMinor },
+          createdAt: new Date().toISOString(),
+          actorProfile: this.currentUser,
+        });
+
         return newExpense;
+      } catch (err) {
+        console.warn('Firestore createExpense fallback:', err);
       }
     }
 
@@ -287,12 +301,16 @@ class DataService {
     }
   ): Promise<Expense> {
     const idx = this.memoryExpenses.findIndex((e) => e.id === expenseId);
-    if (idx === -1) {
-      throw new Error('Expense not found');
-    }
+    const existing = idx !== -1 ? this.memoryExpenses[idx] : null;
 
     const updated: Expense = {
-      ...this.memoryExpenses[idx],
+      ...(existing || {
+        id: expenseId,
+        groupId: '',
+        currency: 'INR',
+        createdBy: this.currentUser.id,
+        createdAt: new Date().toISOString(),
+      }),
       title: data.title,
       description: data.description || '',
       amountMinor: data.amountMinor,
@@ -303,19 +321,51 @@ class DataService {
       updatedAt: new Date().toISOString(),
     };
 
-    this.memoryExpenses[idx] = updated;
-    this.memoryActivity.unshift({
-      id: `act-${Date.now()}`,
-      groupId: updated.groupId,
-      actorId: this.currentUser.id,
-      action: 'updated_expense',
-      entityType: 'expense',
-      entityId: updated.id,
-      metadata: { title: updated.title, amountMinor: updated.amountMinor },
-      createdAt: new Date().toISOString(),
-      actorProfile: this.currentUser,
-    });
-    this.persistLocal();
+    if (isFirebaseConfigured() && db && existing?.groupId) {
+      try {
+        await updateDoc(doc(db, 'groups', existing.groupId, 'expenses', expenseId), {
+          title: updated.title,
+          description: updated.description,
+          amountMinor: updated.amountMinor,
+          category: updated.category,
+          expenseDate: updated.expenseDate,
+          payers: updated.payers,
+          splits: updated.splits,
+          updatedAt: updated.updatedAt,
+        });
+
+        await setDoc(doc(db, 'groups', existing.groupId, 'activity', `act-${Date.now()}`), {
+          id: `act-${Date.now()}`,
+          groupId: existing.groupId,
+          actorId: this.currentUser.id,
+          action: 'updated_expense',
+          entityType: 'expense',
+          entityId: updated.id,
+          metadata: { title: updated.title, amountMinor: updated.amountMinor },
+          createdAt: new Date().toISOString(),
+          actorProfile: this.currentUser,
+        });
+      } catch (err) {
+        console.warn('Firestore updateExpense fallback:', err);
+      }
+    }
+
+    if (idx !== -1) {
+      this.memoryExpenses[idx] = updated;
+      this.memoryActivity.unshift({
+        id: `act-${Date.now()}`,
+        groupId: updated.groupId,
+        actorId: this.currentUser.id,
+        action: 'updated_expense',
+        entityType: 'expense',
+        entityId: updated.id,
+        metadata: { title: updated.title, amountMinor: updated.amountMinor },
+        createdAt: new Date().toISOString(),
+        actorProfile: this.currentUser,
+      });
+      this.persistLocal();
+    }
+
     return updated;
   }
 
@@ -324,6 +374,17 @@ class DataService {
     if (idx !== -1) {
       const exp = this.memoryExpenses[idx];
       exp.deletedAt = new Date().toISOString();
+
+      if (isFirebaseConfigured() && db) {
+        try {
+          await updateDoc(doc(db, 'groups', exp.groupId, 'expenses', expenseId), {
+            deletedAt: exp.deletedAt,
+          });
+        } catch (err) {
+          console.warn('Firestore deleteExpense fallback:', err);
+        }
+      }
+
       this.memoryActivity.unshift({
         id: `act-${Date.now()}`,
         groupId: exp.groupId,
@@ -341,19 +402,16 @@ class DataService {
 
   // --- Settlements ---
   async getSettlements(groupId: string): Promise<Settlement[]> {
-    if (isSupabaseConfigured() && supabase) {
-      const { data, error } = await supabase
-        .from('settlements')
-        .select(`
-          *,
-          payer_profile:profiles!payer_id(*),
-          receiver_profile:profiles!receiver_id(*)
-        `)
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
-        return data as unknown as Settlement[];
+    if (isFirebaseConfigured() && db) {
+      try {
+        const setRef = collection(db, 'groups', groupId, 'settlements');
+        const q = query(setRef, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Settlement));
+        }
+      } catch (err) {
+        console.warn('Firestore getSettlements fallback to local cache:', err);
       }
     }
 
@@ -368,17 +426,44 @@ class DataService {
     note?: string;
     paymentReference?: string;
   }): Promise<Settlement> {
+    const settlementId = `set-${Date.now()}`;
     const newSettlement: Settlement = {
-      id: `set-${Date.now()}`,
+      id: settlementId,
       groupId: data.groupId,
       payerId: data.payerId,
       receiverId: data.receiverId,
       amountMinor: data.amountMinor,
-      status: 'pending', // receiver must confirm
+      status: 'pending',
       note: data.note || null,
       paymentReference: data.paymentReference || null,
       createdAt: new Date().toISOString(),
     };
+
+    if (isFirebaseConfigured() && db) {
+      try {
+        await setDoc(doc(db, 'groups', data.groupId, 'settlements', settlementId), newSettlement);
+
+        await setDoc(doc(db, 'groups', data.groupId, 'activity', `act-${Date.now()}`), {
+          id: `act-${Date.now()}`,
+          groupId: data.groupId,
+          actorId: data.payerId,
+          action: 'recorded_settlement',
+          entityType: 'settlement',
+          entityId: settlementId,
+          metadata: {
+            amountMinor: data.amountMinor,
+            payerId: data.payerId,
+            receiverId: data.receiverId,
+          },
+          createdAt: new Date().toISOString(),
+          actorProfile: DEMO_USERS.find((u) => u.id === data.payerId) || this.currentUser,
+        });
+
+        return newSettlement;
+      } catch (err) {
+        console.warn('Firestore recordSettlement fallback:', err);
+      }
+    }
 
     this.memorySettlements.unshift(newSettlement);
     this.memoryActivity.unshift({
@@ -410,6 +495,18 @@ class DataService {
     s.confirmedAt = new Date().toISOString();
     s.confirmedBy = this.currentUser.id;
 
+    if (isFirebaseConfigured() && db) {
+      try {
+        await updateDoc(doc(db, 'groups', s.groupId, 'settlements', settlementId), {
+          status: 'confirmed',
+          confirmedAt: s.confirmedAt,
+          confirmedBy: s.confirmedBy,
+        });
+      } catch (err) {
+        console.warn('Firestore confirmSettlement fallback:', err);
+      }
+    }
+
     this.memoryActivity.unshift({
       id: `act-${Date.now()}`,
       groupId: s.groupId,
@@ -433,6 +530,17 @@ class DataService {
     }
 
     s.status = 'rejected';
+
+    if (isFirebaseConfigured() && db) {
+      try {
+        await updateDoc(doc(db, 'groups', s.groupId, 'settlements', settlementId), {
+          status: 'rejected',
+        });
+      } catch (err) {
+        console.warn('Firestore disputeSettlement fallback:', err);
+      }
+    }
+
     this.memoryActivity.unshift({
       id: `act-${Date.now()}`,
       groupId: s.groupId,
@@ -451,6 +559,19 @@ class DataService {
 
   // --- Activity ---
   async getActivityLogs(groupId: string): Promise<ActivityLog[]> {
+    if (isFirebaseConfigured() && db) {
+      try {
+        const actRef = collection(db, 'groups', groupId, 'activity');
+        const q = query(actRef, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as ActivityLog));
+        }
+      } catch (err) {
+        console.warn('Firestore getActivityLogs fallback:', err);
+      }
+    }
+
     return this.memoryActivity.filter((a) => a.groupId === groupId);
   }
 
@@ -472,6 +593,17 @@ class DataService {
       profile: user,
     };
     grp.members.push(newMember);
+
+    if (isFirebaseConfigured() && db) {
+      try {
+        await updateDoc(doc(db, 'groups', groupId), {
+          memberIds: arrayUnion(user.id),
+          members: arrayUnion(newMember),
+        });
+      } catch (err) {
+        console.warn('Firestore joinGroup fallback:', err);
+      }
+    }
 
     this.memoryActivity.unshift({
       id: `act-${Date.now()}`,
@@ -504,4 +636,3 @@ class DataService {
 }
 
 export const dataService = new DataService();
-

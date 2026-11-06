@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signUpWithEmail, signInWithGoogle, isLiveSupabase } = useAuth();
+  const { signUpWithEmail, signInWithGoogle, isLiveFirebase } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,8 +45,11 @@ export const SignupPage: React.FC = () => {
     setIsGoogleLoading(false);
     if (error) {
       toast.error(error.message);
-    } else if (!isLiveSupabase) {
+    } else if (!isLiveFirebase) {
       toast.success('Signed in with Google (Demo Persona)');
+      navigate('/dashboard');
+    } else {
+      toast.success('Signed in with Google!');
       navigate('/dashboard');
     }
   };
