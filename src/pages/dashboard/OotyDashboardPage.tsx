@@ -256,7 +256,7 @@ export const OotyDashboardPage: React.FC = () => {
 
   // WhatsApp Summary Generator
   const copyWhatsAppSummary = () => {
-    let text = `🌲 *OOTY TRIP 2024 - GOOGLE PAY EXPENSE SUMMARY* 🏔️\n\n`;
+    let text = `🌲 *OOTY TRIP 2026 - EXPENSE SUMMARY* 🏔️\n\n`;
     text += `💰 *Total Trip Spend:* ₹${totalTripSpending.toLocaleString('en-IN')}\n`;
     text += `👥 *Total Travelers:* ${members.length} Members\n\n`;
     text += `⚖️ *WHO OWES WHOM:*\n`;
@@ -269,7 +269,7 @@ export const OotyDashboardPage: React.FC = () => {
       });
     }
 
-    text += `\n_Generated via SplitMate Ooty Google Pay Edition_ ⚡`;
+    text += `\n_Generated via SplitMate Ooty_ ⚡`;
     navigator.clipboard.writeText(text);
     toast.success('WhatsApp summary copied to clipboard! 📲');
     setIsMenuOpen(false);
@@ -304,7 +304,7 @@ export const OotyDashboardPage: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `ooty_trip_gpay_expenses_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `ooty_trip_expenses_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

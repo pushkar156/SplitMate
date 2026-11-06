@@ -47,10 +47,10 @@ describe('Ooty Trip 13 Members & Engine', () => {
         title: 'Ooty Villa Stay',
         amount: 13000,
         category: 'Stay',
-        date: '2024-11-06',
+        date: '2026-11-06',
         paidBy: 'pushkar',
         splitWith: allMemberIds,
-        createdAt: '2024-11-06T10:00:00Z',
+        createdAt: '2026-11-06T10:00:00Z',
       },
     ];
 
@@ -80,20 +80,20 @@ describe('Ooty Trip 13 Members & Engine', () => {
         title: 'Stay',
         amount: 13000,
         category: 'Stay',
-        date: '2024-11-06',
+        date: '2026-11-06',
         paidBy: 'pushkar',
         splitWith: allMemberIds,
-        createdAt: '2024-11-06T10:00:00Z',
+        createdAt: '2026-11-06T10:00:00Z',
       },
       {
         id: 'exp-2',
         title: 'Dinner',
         amount: 3900,
         category: 'Food & Drinks',
-        date: '2024-11-06',
+        date: '2026-11-06',
         paidBy: 'jitendra',
         splitWith: allMemberIds,
-        createdAt: '2024-11-06T20:00:00Z',
+        createdAt: '2026-11-06T20:00:00Z',
       },
     ];
 
@@ -104,8 +104,8 @@ describe('Ooty Trip 13 Members & Engine', () => {
         fromMemberId: 'disha',
         toMemberId: 'pushkar',
         amount: 1000,
-        date: '2024-11-06',
-        createdAt: '2024-11-06T21:00:00Z',
+        date: '2026-11-06',
+        createdAt: '2026-11-06T21:00:00Z',
       },
     ];
 
@@ -129,10 +129,10 @@ describe('Ooty Trip 13 Members & Engine', () => {
         title: 'Lunch',
         amount: 1300,
         category: 'Food & Drinks',
-        date: '2024-11-06',
+        date: '2026-11-06',
         paidBy: 'pushkar',
         splitWith: allIds,
-        createdAt: '2024-11-06T12:00:00Z',
+        createdAt: '2026-11-06T12:00:00Z',
       },
     ];
 
@@ -164,7 +164,7 @@ describe('Ooty Trip 13 Members & Engine', () => {
         title: 'Special Dinner',
         amount: 1000,
         category: 'Food & Drinks',
-        date: '2024-11-06',
+        date: '2026-11-06',
         paidBy: 'pushkar',
         splitWith: ['pushkar', 'jitendra', 'siddhesh'],
         splitDetails: {
@@ -172,7 +172,7 @@ describe('Ooty Trip 13 Members & Engine', () => {
           jitendra: 300,
           siddhesh: 200,
         },
-        createdAt: '2024-11-06T19:00:00Z',
+        createdAt: '2026-11-06T19:00:00Z',
       },
     ];
 
@@ -213,40 +213,40 @@ describe('Ooty Trip 13 Members & Engine', () => {
         title: 'shwrma',
         amount: 240,
         category: 'Food & Drinks',
-        date: '2024-11-02',
+        date: '2026-11-02',
         paidBy: 'pushkar',
         splitWith: ['pushkar', 'jitendra'],
-        createdAt: '2024-11-02T12:00:00Z',
+        createdAt: '2026-11-02T12:00:00Z',
       },
       {
         id: 'exp-2',
         title: 'Split request',
         amount: 170.8,
         category: 'Food & Drinks',
-        date: '2024-11-01',
+        date: '2026-11-01',
         paidBy: 'jitendra',
         splitWith: ['pushkar', 'jitendra'],
-        createdAt: '2024-11-01T15:00:00Z',
+        createdAt: '2026-11-01T15:00:00Z',
       },
       {
         id: 'exp-3',
         title: 'Split request',
         amount: 248.2,
         category: 'Food & Drinks',
-        date: '2024-10-18',
+        date: '2026-10-18',
         paidBy: 'jitendra',
         splitWith: ['pushkar', 'jitendra'],
-        createdAt: '2024-10-18T18:00:00Z',
+        createdAt: '2026-10-18T18:00:00Z',
       },
       {
         id: 'exp-4',
         title: 'ice cream',
         amount: 84,
         category: 'Food & Drinks',
-        date: '2024-10-11',
+        date: '2026-10-11',
         paidBy: 'pushkar',
         splitWith: ['pushkar', 'jitendra'],
-        createdAt: '2024-10-11T21:00:00Z',
+        createdAt: '2026-10-11T21:00:00Z',
       },
     ];
 
@@ -263,9 +263,9 @@ describe('Ooty Trip 13 Members & Engine', () => {
       fromMemberId: 'pushkar',
       toMemberId: 'jitendra',
       amount: 47.5,
-      date: '2024-11-07',
-      createdAt: '2024-11-07T10:00:00Z',
-      note: 'Google Pay settlement',
+      date: '2026-11-07',
+      createdAt: '2026-11-07T10:00:00Z',
+      note: 'Settlement',
     };
 
     const afterDetails = getGPayPairwiseDetails('pushkar', jitendra, expenses, [settlement]);

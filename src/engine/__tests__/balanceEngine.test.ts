@@ -228,7 +228,7 @@ describe('balanceEngine Unit Tests', () => {
         receiverId: 'Diya',
         amountMinor: 200000,
         status: 'confirmed',
-        note: 'GPay payment',
+        note: 'UPI payment',
         createdAt: '2026-11-04T15:00:00Z',
         confirmedAt: '2026-11-04T15:30:00Z',
         confirmedBy: 'Diya',

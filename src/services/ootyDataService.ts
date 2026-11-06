@@ -434,7 +434,7 @@ export async function addOotySettlement(
 
   const newSettlement: OotySettlement = {
     ...settlementData,
-    note: (settlementData.note || '').trim() || 'Google Pay settlement',
+    note: (settlementData.note || '').trim() || 'Settlement',
     id: localId,
     createdAt: now,
   };
@@ -452,7 +452,7 @@ export async function addOotySettlement(
         toMemberId: settlementData.toMemberId,
         amount: Number(settlementData.amount) || 0,
         date: settlementData.date || now.split('T')[0],
-        note: (settlementData.note || '').trim() || 'Google Pay settlement',
+        note: (settlementData.note || '').trim() || 'Settlement',
         clientCreatedAt: now,
         createdAt: serverTimestamp(),
       };

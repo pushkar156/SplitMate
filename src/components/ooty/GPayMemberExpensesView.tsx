@@ -373,7 +373,7 @@ export const GPayMemberExpensesView: React.FC<GPayMemberExpensesViewProps> = ({
                             isDark ? 'text-[#8e918f]' : 'text-[#5f6368]'
                           }`}
                         >
-                          {formatGPayItemDate(s.createdAt || s.date)} • Settled via Google Pay
+                          {formatGPayItemDate(s.createdAt || s.date)} • Settled via SplitMate
                         </div>
                       </div>
                     </div>

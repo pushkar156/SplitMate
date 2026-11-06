@@ -34,7 +34,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
   const [step, setStep] = useState<SettleStep>('choose');
   const [toId, setToId] = useState<string>('');
   const [amountStr, setAmountStr] = useState<string>('');
-  const [note, setNote] = useState<string>('Google Pay settlement');
+  const [note, setNote] = useState<string>('Settlement');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Sync state whenever modal opens or defaults change
@@ -49,7 +49,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
         setAmountStr('');
         setStep('choose');
       }
-      setNote('Google Pay settlement');
+      setNote('Settlement');
       setIsSubmitting(false);
     }
   }, [isOpen, defaultToId, defaultAmount]);
@@ -89,7 +89,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
         toMemberId: toId,
         amount: numAmount,
         date: new Date().toISOString().split('T')[0],
-        note: note.trim() || 'Google Pay settlement',
+        note: note.trim() || 'Settlement',
       });
 
       const toName = toMember?.name || toId;
@@ -301,7 +301,7 @@ export const GPaySettleUpModal: React.FC<GPaySettleUpModalProps> = ({
                 type="text"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Google Pay settlement"
+                placeholder="Settlement"
                 className={`bg-transparent font-medium focus:outline-none text-right flex-1 ml-2 ${
                   isDark ? 'text-white' : 'text-[#202124]'
                 }`}

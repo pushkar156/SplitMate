@@ -284,7 +284,7 @@ export const LoginPage: React.FC = () => {
 
       {/* Footer */}
       <div className={`text-center py-2 text-xs ${isDark ? 'text-[#5e6368]' : 'text-[#8e918f]'}`}>
-        SplitMate • Ooty Trip 2024 • Stays logged in on this device
+        SplitMate • Ooty Trip 2026 • Stays logged in on this device
       </div>
     </div>
   );
