@@ -519,19 +519,6 @@ export const OotyDashboardPage: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => {
-                      setIsExpensesManagerOpen(true);
-                      setIsMenuOpen(false);
-                    }}
-                    className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
-                      isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
-                    }`}
-                  >
-                    <Receipt className="w-4 h-4 text-[#ea4335]" />
-                    <span>Manage / Delete Splits ({expenses.length})</span>
-                  </button>
-
-                  <button
                     onClick={downloadCSV}
                     className={`w-full px-4 py-2.5 text-left flex items-center gap-2.5 ${
                       isDark ? 'hover:bg-[#282a2d]' : 'hover:bg-[#f1f3f4]'
