@@ -30,7 +30,9 @@ export const App: React.FC = () => {
       <AuthProvider>
         <BrowserRouter>
           <Toaster
-            position="top-right"
+            position="bottom-center"
+            offset="70px"
+            mobileOffset="70px"
             theme="system"
             richColors
             closeButton
